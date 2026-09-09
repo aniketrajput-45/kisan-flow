@@ -11,14 +11,13 @@ Base URL: `/api`
 - **HTTP Method**: `POST`
 - **URL**: `/api/auth/register`
 - **Auth**: None
-- **Role**: Public
+- **Role**: Public (Registers as `FARMER`)
 - **Request Body**:
 ```json
 {
   "name": "Ramesh Kumar",
   "phone": "9876543210",
-  "role": "FARMER",
-  "password": "optional_or_default"
+  "password": "password123"
 }
 ```
 - **Success Response (201 Created)**:
@@ -214,27 +213,50 @@ Base URL: `/api`
 
 ---
 
-## 4. Officer Module (`/api/officer`)
+## 4. Officer Module (`/api/officer`) & Procurement (`/api/procurements`)
 
-### 4.1 Lookup Booking by QR/Token or Search Query
+### 4.1 Lookup Booking by QR Code or Token Number
 - **HTTP Method**: `GET`
-- **URL**: `/api/officer/booking/lookup?query=BDW-042` or `/api/officer/booking/:qrToken`
+- **URL**: `/api/officer/booking/lookup?query=BDW-001` or `/api/officer/booking/:qrToken`
 - **Auth**: Bearer JWT
-- **Role**: `OFFICER`, `ADMIN`
-- **Query Parameters**: `query` (QR string, Token number, or Farmer Phone)
+- **Role**: `OFFICER`, `ADMIN` (Farmer gets `403 Forbidden`)
+- **Query Parameters**: `query` (QR string or Token number)
 - **Success Response (200 OK)**:
 ```json
 {
   "success": true,
   "data": {
-    "booking_id": "bkg_501",
+    "booking_id": 100,
+    "token_number": "BDW-001",
+    "qr_code": "KF-BKG-100-BDW-001",
+    "crop": "WHEAT",
+    "booked_quantity_kg": 4800,
+    "booking_status": "BOOKED",
+    "created_at": "2026-09-09T20:00:00.000Z",
     "farmer_name": "Ramesh Kumar",
     "farmer_phone": "9876543210",
-    "token_number": "BDW-042",
-    "crop": "Wheat",
-    "declared_quantity_kg": 4800,
-    "status": "ARRIVED"
+    "centre_id": 1,
+    "centre_name": "Burdwan Procurement Centre",
+    "centre_code": "BDW",
+    "slot_id": 1,
+    "slot_date": "2026-09-10",
+    "start_time": "09:00:00",
+    "end_time": "11:00:00"
   }
+}
+```
+- **Error Response (403 Forbidden)**:
+```json
+{
+  "success": false,
+  "error": "Access denied. Requires one of roles: OFFICER, ADMIN"
+}
+```
+- **Error Response (404 Not Found)**:
+```json
+{
+  "success": false,
+  "error": "No booking found matching the provided lookup criteria"
 }
 ```
 
@@ -242,37 +264,53 @@ Base URL: `/api`
 - **HTTP Method**: `POST`
 - **URL**: `/api/procurements`
 - **Auth**: Bearer JWT
-- **Role**: `OFFICER`
+- **Role**: `OFFICER`, `ADMIN` (Farmer gets `403 Forbidden`)
 - **Request Body**:
 ```json
 {
-  "booking_id": "bkg_501",
+  "booking_id": 100,
   "weight_kg": 4800,
-  "grade": "A",
-  "rate_per_kg": 22.75
+  "grade": "A"
 }
 ```
+- **Validation Rules**:
+  - `booking_id` must exist, belong to valid centre/slot, and be in a processable status (`BOOKED`, `ARRIVED`, `IN_QUEUE`, `PROCESSING`).
+  - `weight_kg` > 0.
+  - `grade` must be present.
+  - Procurement must NOT already exist for this booking.
 - **Success Response (201 Created)**:
 ```json
 {
   "success": true,
   "data": {
-    "procurement_id": "prc_901",
-    "booking_id": "bkg_501",
-    "weight_kg": 4800,
-    "grade": "A",
-    "total_amount": 109200,
-    "procurement_status": "COMPLETED",
-    "payment": {
-      "payment_id": "pmt_301",
-      "status": "RECORDED",
-      "amount": 109200
+    "procurement": {
+      "id": 10,
+      "booking_id": 100,
+      "officer_id": 2,
+      "weight_kg": 4800,
+      "grade": "A",
+      "total_amount": 109200,
+      "status": "COMPLETED",
+      "created_at": "2026-09-09T21:50:00.000Z"
     },
-    "sms": {
-      "status": "DISPATCHED",
-      "recipient": "9876543210"
+    "payment": {
+      "id": 100,
+      "procurement_id": 10,
+      "booking_id": 100,
+      "farmer_id": 1,
+      "amount": 109200,
+      "status": "RECORDED",
+      "reference_number": "PAY-2026-100-1788971193719",
+      "updated_at": "2026-09-09T21:50:00.000Z"
     }
   }
+}
+```
+- **Error Response (400 Bad Request)**:
+```json
+{
+  "success": false,
+  "error": "Booking is in 'COMPLETED' state and cannot be processed for procurement"
 }
 ```
 
@@ -284,73 +322,123 @@ Base URL: `/api`
 - **HTTP Method**: `GET`
 - **URL**: `/api/payments/:bookingId`
 - **Auth**: Bearer JWT
-- **Role**: `FARMER`, `OFFICER`, `ADMIN`
+- **Role**: `FARMER` (own payments only), `OFFICER`, `ADMIN`
 - **Success Response (200 OK)**:
 ```json
 {
   "success": true,
   "data": {
-    "payment_id": "pmt_301",
-    "booking_id": "bkg_501",
+    "payment_id": 100,
+    "procurement_id": 10,
+    "booking_id": 100,
+    "farmer_id": 1,
     "amount": 109200,
     "status": "RECORDED",
-    "reference_number": "PAY-2026-BDW-901",
-    "updated_at": "2026-09-09T20:15:00Z"
+    "reference_number": "PAY-2026-100-1788971193719",
+    "updated_at": "2026-09-09T21:50:00.000Z"
   }
 }
 ```
 
-### 5.2 Advance Payment Status (State Machine Simulation)
+### 5.2 Payment State Machine Status Transition
 - **HTTP Method**: `PATCH`
 - **URL**: `/api/payments/:id/status`
 - **Auth**: Bearer JWT
-- **Role**: `ADMIN`
+- **Role**: `OFFICER`, `ADMIN` (Farmer gets `403 Forbidden`)
 - **Request Body**:
 ```json
 {
   "status": "INITIATED"
 }
 ```
+- **State Transition Rules**:
+  - `RECORDED` -> `INITIATED`
+  - `INITIATED` -> `PROCESSING`
+  - `PROCESSING` -> `CREDITED`
+- Arbitrary jumps (e.g. `RECORDED` -> `CREDITED`) are strictly rejected.
 - **Success Response (200 OK)**:
 ```json
 {
   "success": true,
   "data": {
-    "payment_id": "pmt_301",
+    "payment_id": 100,
     "previous_status": "RECORDED",
     "current_status": "INITIATED",
-    "updated_at": "2026-09-09T20:16:00Z"
+    "amount": 109200,
+    "reference_number": "PAY-2026-100-1788971193719",
+    "updated_at": "2026-09-09T21:52:00.000Z"
   }
 }
 ```
+- **Error Response (409 Conflict)**:
+```json
+{
+  "success": false,
+  "error": "Invalid payment state transition from 'RECORDED' to 'CREDITED'. Allowed transition: INITIATED"
+}
+```
+
 
 ---
 
-## 6. SMS Webhook Module (`/api/sms`)
+## 6. SMS Module (`/api/sms`)
 
-### 6.1 Receive SMS Webhook
+### 6.1 Outbound SMS Format
+Upon successful procurement recording, an outbound SMS verification record is generated with direction `OUTBOUND` and initial status `SENT`:
+```text
+Your procurement details:
+Farmer: {farmer_name}
+Crop: {crop}
+Weight: {weight_kg} kg
+Grade: {grade}
+Centre: {centre_name}
+
+Reply 1 to CONFIRM
+Reply 2 to DISPUTE
+```
+
+### 6.2 Inbound SMS Webhook
 - **HTTP Method**: `POST`
 - **URL**: `/api/sms/webhook`
-- **Auth**: None / Webhook Secret
-- **Role**: Public / SMS Gateway Provider
+- **Auth**: None (Public gateway webhook endpoint)
 - **Request Body**:
 ```json
 {
+  "procurement_id": 10,
   "from": "9876543210",
-  "text": "1",
-  "procurement_id": "prc_901"
+  "message": "1"
 }
 ```
-*Note: Backend auto-correlates via `procurement_id` or latest unconfirmed procurement for `from` phone number.*
+- **Correlation Logic**:
+  - Primary correlation uses `procurement_id` if supplied.
+  - Fallback correlation uses `from` phone number to match the latest pending `SENT` outbound SMS verification for that farmer.
+- **Accepted Replies & Normalization**:
+  - `1`, ` 1 `, `confirm`, `CONFIRM` $\rightarrow$ Status updated to `CONFIRMED`
+  - `2`, ` 2 `, `dispute`, `DISPUTE` $\rightarrow$ Status updated to `DISPUTED`
 - **Success Response (200 OK)**:
 ```json
 {
   "success": true,
   "data": {
-    "procurement_id": "prc_901",
-    "verification_status": "CONFIRMED",
-    "message": "SMS confirmation processed successfully"
+    "procurement_id": 10,
+    "status": "CONFIRMED",
+    "response": "1",
+    "updated_at": "2026-09-09T22:26:42.735Z"
   }
+}
+```
+- **Error Response (404 Not Found)**:
+```json
+{
+  "success": false,
+  "error": "No pending SMS verification found for phone: 9876543210"
+}
+```
+- **Error Response (409 Conflict - Duplicate Reply)**:
+```json
+{
+  "success": false,
+  "error": "Procurement #10 SMS verification is already resolved as 'CONFIRMED'"
 }
 ```
 
