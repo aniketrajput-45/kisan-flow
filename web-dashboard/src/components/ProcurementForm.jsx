@@ -48,12 +48,11 @@ const ProcurementForm = ({ booking, onSubmit, isSubmitting }) => {
     if (!weightKg || parseFloat(weightKg) <= 0) return;
 
     onSubmit({
-      booking_id: booking.booking_id,
+      booking_id: booking.booking_id || booking.id,
       weight_kg: parseFloat(weightKg),
       grade,
       moisture_pct: parseFloat(moisturePct) || 11.2,
       bags_count: parseInt(bagsCount, 10) || 100,
-      total_amount: (parseFloat(weightKg) * MSP_RATE_PER_KG).toFixed(2),
     });
   };
 

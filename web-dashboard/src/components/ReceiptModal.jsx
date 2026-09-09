@@ -1,12 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, Printer, X, MessageSquare } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { paymentService } from '../services/api';
+
+const NEXT_PAYMENT_STATUS = {
+  RECORDED: 'INITIATED',
+  INITIATED: 'PROCESSING',
+  PROCESSING: 'CREDITED',
+};
 
 const ReceiptModal = ({ receiptData, onClose, onNextFarmer }) => {
   const { lang, t } = useLanguage();
+  const [currentPaymentStatus, setCurrentPaymentStatus] = useState(receiptData?.payment?.status || 'RECORDED');
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+
   if (!receiptData) return null;
 
   const { procurement, payment, booking } = receiptData;
+  const paymentId = payment?.id || payment?.payment_id;
+  const nextStatus = NEXT_PAYMENT_STATUS[currentPaymentStatus];
+
+  const handleProgressPayment = async () => {
+    if (!paymentId || !nextStatus || updatingPayment) return;
+    setUpdatingPayment(true);
+    try {
+      const res = await paymentService.updateStatus(paymentId, nextStatus);
+      setCurrentPaymentStatus(res.current_status || nextStatus);
+    } catch (err) {
+      alert('Payment Status Error: ' + err);
+    } finally {
+      setUpdatingPayment(false);
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -61,10 +86,19 @@ const ReceiptModal = ({ receiptData, onClose, onNextFarmer }) => {
             {/* Status Badges */}
             <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
               
-              {/* Payment Status: RECORDED */}
-              <div className="flex items-center space-x-1.5 bg-blue-50 border border-blue-300 text-[#1E3A8A] px-3 py-1.5 rounded-full text-xs font-bold shadow-sm">
+              {/* Payment Status: RECORDED with status progression */}
+              <div className="flex items-center space-x-2 bg-blue-50 border border-blue-300 text-[#1E3A8A] px-3 py-1.5 rounded-full text-xs font-bold shadow-sm">
                 <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                <span>{t.receipt.paymentStatus}: <strong className="uppercase">{payment?.status || 'RECORDED'}</strong></span>
+                <span>{t.receipt.paymentStatus}: <strong className="uppercase">{currentPaymentStatus}</strong></span>
+                {nextStatus && (
+                  <button
+                    onClick={handleProgressPayment}
+                    disabled={updatingPayment}
+                    className="ml-2 bg-[#1E3A8A] text-white hover:bg-[#0F2253] px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-extrabold transition shadow-2xs"
+                  >
+                    {updatingPayment ? 'Updating...' : `Progress to ${nextStatus}`}
+                  </button>
+                )}
               </div>
 
               {/* SMS Status: SENT TO FARMER */}

@@ -33,17 +33,9 @@ const AdminDashboard = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [overviewData, centresData, disputesData, escalationsData] = await Promise.all([
-        adminService.getOverview(date),
-        adminService.getCentres(),
-        adminService.getDisputes(),
-        adminService.getPaymentEscalations(),
-      ]);
-
+      const overviewData = await adminService.getOverview(date);
       setStats(overviewData);
-      setCentres(centresData);
-      setDisputes(disputesData);
-      setEscalations(escalationsData);
+      setCentres(overviewData?.centres || []);
     } catch (err) {
       console.error('Failed to load admin data', err);
     } finally {
@@ -179,8 +171,8 @@ const AdminDashboard = () => {
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fadeIn">
             <AdminKPIs stats={stats} />
-            <LiveQueueTable centres={centres} />
-            <PaymentBreakdownBar stats={stats?.payment_stats} />
+            <LiveQueueTable centres={centres} queueAvailable={stats?.queue_available !== false} />
+            <PaymentBreakdownBar stats={stats?.payments} />
           </div>
         )}
 

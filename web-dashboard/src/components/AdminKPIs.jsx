@@ -5,12 +5,12 @@ import { useLanguage } from '../context/LanguageContext';
 const AdminKPIs = ({ stats }) => {
   const { t } = useLanguage();
 
-  const {
-    active_centres = 3,
-    farmers_in_queue = 58,
-    total_procured_tons = 91.4,
-    avg_wait_minutes = 18,
-  } = stats || {};
+  const totalFarmers = stats?.farmers?.total ?? 0;
+  const inQueueCount = stats?.bookings?.in_queue ?? 0;
+  const totalProcuredKg = stats?.procurement?.total_weight_kg ?? 0;
+  const totalProcuredTons = (totalProcuredKg / 1000).toFixed(1);
+  const totalAmount = stats?.procurement?.total_amount ?? 0;
+  const activeCentresCount = Array.isArray(stats?.centres) ? stats.centres.length : 0;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -27,11 +27,11 @@ const AdminKPIs = ({ stats }) => {
         </div>
         <div className="mt-2">
           <div className="text-2xl lg:text-3xl font-extrabold text-[#0F2253] font-mono">
-            {active_centres}
+            {totalFarmers}
           </div>
           <div className="mt-2 text-[11px] text-slate-500 border-t border-slate-100 pt-2 flex items-center justify-between">
-            <span className="text-slate-600">Paschim Bardhaman</span>
-            <span className="text-emerald-700 font-bold">100% Online</span>
+            <span className="text-slate-600">Registered Farmers</span>
+            <span className="text-emerald-700 font-bold">{activeCentresCount} Active Centres</span>
           </div>
         </div>
       </div>
@@ -48,11 +48,11 @@ const AdminKPIs = ({ stats }) => {
         </div>
         <div className="mt-2">
           <div className="text-2xl lg:text-3xl font-extrabold text-[#B45309] font-mono">
-            {farmers_in_queue}
+            {inQueueCount}
           </div>
           <div className="mt-2 text-[11px] text-slate-500 border-t border-slate-100 pt-2 flex items-center justify-between">
-            <span className="text-slate-600">Across 3 Mandis</span>
-            <span className="text-amber-700 font-semibold">Active Tokens</span>
+            <span className="text-slate-600">Total Bookings Today: {stats?.bookings?.total ?? 0}</span>
+            <span className="text-amber-700 font-semibold">In Live Queue</span>
           </div>
         </div>
       </div>
@@ -69,32 +69,32 @@ const AdminKPIs = ({ stats }) => {
         </div>
         <div className="mt-2">
           <div className="text-2xl lg:text-3xl font-extrabold text-[#0E6606] font-mono">
-            {total_procured_tons} <span className="text-sm font-sans font-medium text-slate-500">{t.admin.tons}</span>
+            {totalProcuredTons} <span className="text-sm font-sans font-medium text-slate-500">{t.admin.tons}</span>
           </div>
           <div className="mt-2 text-[11px] text-slate-500 border-t border-slate-100 pt-2 flex items-center justify-between">
-            <span className="text-slate-600">{(total_procured_tons * 10).toFixed(0)} {t.kpis.quintals}</span>
-            <span className="text-emerald-700 font-bold">₹2,275/Qtl MSP</span>
+            <span className="text-slate-600">{(totalProcuredKg / 100).toFixed(0)} {t.kpis.quintals}</span>
+            <span className="text-emerald-700 font-bold">Completed: {stats?.procurement?.completed_count ?? 0}</span>
           </div>
         </div>
       </div>
 
-      {/* Card 4: Avg Queue Wait Time */}
+      {/* Card 4: Total Payout Amount */}
       <div className="gov-card rounded-lg p-4 border-l-4 border-l-purple-600 flex flex-col justify-between shadow-sm hover:shadow transition">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-            {t.admin.avgWaitTime}
+            Total Procurement Payout
           </span>
           <div className="w-8 h-8 rounded bg-purple-50 text-purple-700 flex items-center justify-center border border-purple-200">
             <Clock className="w-4 h-4" />
           </div>
         </div>
         <div className="mt-2">
-          <div className="text-2xl lg:text-3xl font-extrabold text-purple-900 font-mono">
-            {avg_wait_minutes} <span className="text-sm font-sans font-medium text-slate-500">{t.admin.mins}</span>
+          <div className="text-xl lg:text-2xl font-extrabold text-purple-900 font-mono">
+            ₹{parseFloat(totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
           <div className="mt-2 text-[11px] text-slate-500 border-t border-slate-100 pt-2 flex items-center justify-between">
-            <span className="text-slate-600">Dynamic Rolling ETA</span>
-            <span className="text-purple-700 font-bold">Target &lt;20m</span>
+            <span className="text-slate-600">Credited: {stats?.payments?.credited ?? 0}</span>
+            <span className="text-purple-700 font-bold">Recorded: {stats?.payments?.recorded ?? 0}</span>
           </div>
         </div>
       </div>

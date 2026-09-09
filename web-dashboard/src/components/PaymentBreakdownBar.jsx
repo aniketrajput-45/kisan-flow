@@ -5,12 +5,10 @@ import { useLanguage } from '../context/LanguageContext';
 const PaymentBreakdownBar = ({ stats }) => {
   const { t } = useLanguage();
 
-  const {
-    recorded = 12,
-    initiated = 15,
-    processing = 10,
-    credited = 37,
-  } = stats || {};
+  const recorded = stats?.recorded ?? 0;
+  const initiated = stats?.initiated ?? 0;
+  const processing = stats?.processing ?? 0;
+  const credited = stats?.credited ?? 0;
 
   const total = recorded + initiated + processing + credited;
 
