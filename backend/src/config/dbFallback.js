@@ -75,7 +75,7 @@ function setupDbFallback(pool) {
           return resolve({ rows: [user] });
         }
 
-        if (queryStr.includes('SELECT id, name, code, district, state, capacity')) {
+        if (queryStr.includes('FROM centres') && queryStr.includes('SELECT id, name')) {
           return resolve({ rows: memoryDb.centres });
         }
 
@@ -109,7 +109,7 @@ function setupDbFallback(pool) {
           return resolve({ rows: centre ? [{ code: centre.code }] : [] });
         }
 
-        if (queryStr.includes('SELECT COUNT(*) AS total FROM bookings')) {
+        if (queryStr.includes('SELECT COUNT(*) AS total FROM bookings WHERE centre_id = $1')) {
           const [centreId, date] = params;
           const total = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId) && String(b.booking_date) === String(date)).length;
           return resolve({ rows: [{ total }] });
@@ -141,7 +141,7 @@ function setupDbFallback(pool) {
           return resolve({ rows: [] });
         }
 
-        if (queryStr.includes('FROM bookings b') && queryStr.includes('WHERE b.id = $1')) {
+        if (queryStr.includes('FROM bookings b') && queryStr.includes('JOIN users') && queryStr.includes('WHERE b.id = $1')) {
           const [bookingId] = params;
           const booking = memoryDb.bookings.find(b => String(b.id) === String(bookingId));
           if (!booking) return resolve({ rows: [] });
@@ -208,7 +208,13 @@ function setupDbFallback(pool) {
           });
         }
 
-        if (queryStr.includes('FROM bookings') && queryStr.includes('status') && queryStr.includes('WHERE id = $1')) {
+        if (queryStr.includes('SELECT id, token_number FROM bookings') && queryStr.includes("status = 'PROCESSING'")) {
+          const [centreId, bookingDate] = params;
+          const activeProcessing = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId) && String(b.booking_date) === String(bookingDate) && b.status === 'PROCESSING');
+          return resolve({ rows: activeProcessing });
+        }
+
+        if (queryStr.includes('FROM bookings') && !queryStr.includes('JOIN') && (queryStr.includes('WHERE b.id = $1') || queryStr.includes('WHERE id = $1'))) {
           const [bookingId] = params;
           const booking = memoryDb.bookings.find(b => String(b.id) === String(bookingId));
           return resolve({ rows: booking ? [booking] : [] });
@@ -262,7 +268,21 @@ function setupDbFallback(pool) {
           return resolve({ rows: [] });
         }
 
-        if (queryStr.includes('FROM payments') && (queryStr.includes('WHERE id = $1') || queryStr.includes('WHERE booking_id = $1') || queryStr.includes('WHERE'))) {
+        if (queryStr.includes("UPDATE bookings SET status = 'IN_QUEUE' WHERE id = $1")) {
+          const [bookingId] = params;
+          const booking = memoryDb.bookings.find(b => String(b.id) === String(bookingId));
+          if (booking) booking.status = 'IN_QUEUE';
+          return resolve({ rows: [] });
+        }
+
+        if (queryStr.includes("UPDATE bookings SET status = 'PROCESSING' WHERE id = $1")) {
+          const [bookingId] = params;
+          const booking = memoryDb.bookings.find(b => String(b.id) === String(bookingId));
+          if (booking) booking.status = 'PROCESSING';
+          return resolve({ rows: [] });
+        }
+
+        if (queryStr.includes('FROM payments') && (queryStr.includes('WHERE id = $1') || queryStr.includes('WHERE booking_id = $1') || queryStr.includes('WHERE pm.id = $1'))) {
           const [id] = params;
           if (!memoryDb.payments) memoryDb.payments = [];
           const payment = memoryDb.payments.find(p => String(p.booking_id) === String(id) || String(p.id) === String(id));
@@ -333,6 +353,52 @@ function setupDbFallback(pool) {
             sms.response = responseCode;
           }
           return resolve({ rows: sms ? [sms] : [] });
+        }
+
+        if (queryStr.includes("SELECT COUNT(*) AS total FROM users WHERE role = 'FARMER'")) {
+          const total = memoryDb.users.filter(u => u.role === 'FARMER').length;
+          return resolve({ rows: [{ total }] });
+        }
+
+        if (queryStr.includes('SELECT status, COUNT(*) AS count') && queryStr.includes('FROM bookings')) {
+          const [date] = params;
+          const statusCounts = {};
+          memoryDb.bookings
+            .filter(b => String(b.booking_date) === String(date))
+            .forEach(b => {
+              statusCounts[b.status] = (statusCounts[b.status] || 0) + 1;
+            });
+          const rows = Object.entries(statusCounts).map(([status, count]) => ({ status, count }));
+          return resolve({ rows });
+        }
+
+        if (queryStr.includes('SELECT COUNT(p.id) AS completed_count') && queryStr.includes('FROM procurements p')) {
+          const [date] = params;
+          const procs = (memoryDb.procurements || []).filter(p => {
+            const booking = memoryDb.bookings.find(b => String(b.id) === String(p.booking_id));
+            return booking && String(booking.booking_date) === String(date) && p.status === 'COMPLETED';
+          });
+          const completed_count = procs.length;
+          const total_weight_kg = procs.reduce((sum, p) => sum + (parseFloat(p.weight_kg) || 0), 0);
+          const total_amount = procs.reduce((sum, p) => sum + (parseFloat(p.total_amount) || 0), 0);
+          return resolve({ rows: [{ completed_count, total_weight_kg, total_amount }] });
+        }
+
+        if (queryStr.includes('SELECT pm.status, COUNT(*) AS count') && queryStr.includes('FROM payments pm')) {
+          const [date] = params;
+          const statusCounts = {};
+          (memoryDb.payments || []).forEach(pm => {
+            const booking = memoryDb.bookings.find(b => String(b.id) === String(pm.booking_id));
+            if (booking && String(booking.booking_date) === String(date)) {
+              statusCounts[pm.status] = (statusCounts[pm.status] || 0) + 1;
+            }
+          });
+          const rows = Object.entries(statusCounts).map(([status, count]) => ({ status, count }));
+          return resolve({ rows });
+        }
+
+        if (queryStr.includes('SELECT id, name, code, district, state FROM centres WHERE is_active = true')) {
+          return resolve({ rows: memoryDb.centres });
         }
 
         return resolve({ rows: [] });

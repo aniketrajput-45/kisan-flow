@@ -121,6 +121,14 @@ class OfficerService {
 
       await client.query('COMMIT');
 
+      // Decoupled Redis Queue cleanup: remove booking from active queue & clear processing token
+      try {
+        const queueService = require('./queueService');
+        await queueService.removeFromQueue(booking.centre_id, booking.booking_date, booking.id);
+      } catch (qErr) {
+        console.error('[Procurement Queue Cleanup Error - Non-fatal]', qErr.message);
+      }
+
       // Decoupled Outbound SMS dispatch: attempt after DB commit so SMS failure never rolls back procurement/payment
       let smsResult = null;
       try {

@@ -4,6 +4,8 @@ const authRoutes = require('./routes/authRoutes');
 const farmerRoutes = require('./routes/farmerRoutes');
 const officerRoutes = require('./routes/officerRoutes');
 const smsRoutes = require('./routes/smsRoutes');
+const queueRoutes = require('./routes/queueRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const { authenticate, requireRole } = require('./middleware/auth');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
@@ -26,6 +28,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api', farmerRoutes);
 app.use('/api', officerRoutes);
 app.use('/api', smsRoutes);
+app.use('/api', queueRoutes);
+app.use('/api', adminRoutes);
 
 // Test role guard routes for Phase 2 verification
 app.get('/api/test/farmer', authenticate, requireRole('FARMER'), (req, res) => {

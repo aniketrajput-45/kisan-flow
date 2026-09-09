@@ -187,27 +187,107 @@ Base URL: `/api`
 
 ## 3. Queue Module (`/api/queue`)
 
-### 3.1 Get Live Queue Status & ETA
-- **HTTP Method**: `GET`
-- **URL**: `/api/queue/:bookingId`
+### Architecture & Redis Key Strategy
+- **PostgreSQL Guarantees**: PostgreSQL is the single source of truth (`status` column in `bookings` table). State updates (`IN_QUEUE`, `PROCESSING`, `COMPLETED`) are locked with `FOR UPDATE` and committed to PostgreSQL first.
+- **Redis Guarantees**: Redis provides fast, real-time live queue ordering and active serving token lookups. Redis data is transient.
+- **Redis Degraded Modes & Failure Guarantees**:
+  1. **Failure during `POST /api/queue/arrive`**: PostgreSQL updates booking status to `IN_QUEUE`. If Redis `RPUSH` fails, response returns HTTP 200 with `queue_available: false`, `message: "Live queue temporarily unavailable"`, and `queue_position: null`, `people_ahead: null`, `estimated_wait_minutes: null`. No fake queue positions are fabricated.
+  2. **Failure during `POST /api/queue/:bookingId/start`**: PostgreSQL updates booking status to `PROCESSING`. If Redis `SET`/`LREM` fails, response returns HTTP 200 with `status: "PROCESSING"`, `queue_available: false`, and `message: "Booking is PROCESSING in PostgreSQL, but live queue update to Redis failed"`.
+  3. **Failure during `POST /api/procurements` (Cleanup)**: Procurement, payment, and booking completion commit successfully in PostgreSQL. If Redis `LREM`/`DEL` cleanup fails, the procurement transaction is NOT rolled back; a non-fatal warning is logged.
+- **Test Infrastructure Verification**:
+  - PostgreSQL was verified via in-memory mock database adapter (`USE_MOCK_DB=true`) as local PostgreSQL was unavailable (`ECONNREFUSED`).
+  - Redis was verified via in-memory mock client abstraction in `redis.js` as local Redis server was unavailable.
+
+---
+
+### 3.1 Farmer Mark Arrival
+- **HTTP Method**: `POST`
+- **URL**: `/api/queue/arrive`
 - **Auth**: Bearer JWT
-- **Role**: `FARMER`, `OFFICER`, `ADMIN`
+- **Role**: `FARMER` (own booking only), `OFFICER`, `ADMIN`
+- **Request Body**:
+```json
+{
+  "booking_id": 100
+}
+```
 - **Success Response (200 OK)**:
 ```json
 {
   "success": true,
   "data": {
-    "booking_id": "bkg_501",
-    "centre_id": "cnt_1",
-    "slot_id": "slt_10",
-    "your_token": "BDW-042",
-    "current_serving_token": "BDW-035",
-    "serving_number": 35,
-    "people_ahead": 7,
-    "average_service_time_mins": 10,
-    "estimated_waiting_time_mins": 70,
-    "queue_status": "IN_PROGRESS"
+    "booking_id": 100,
+    "token": "BDW-001",
+    "centre_id": 1,
+    "status": "IN_QUEUE",
+    "queue_position": 2,
+    "people_ahead": 1,
+    "estimated_wait_minutes": 15
   }
+}
+```
+
+---
+
+### 3.2 Get Live Queue Status & ETA
+- **HTTP Method**: `GET`
+- **URL**: `/api/queue/:bookingId`
+- **Auth**: Bearer JWT
+- **Role**: `FARMER` (own booking only), `OFFICER`, `ADMIN` (Farmer gets `403` for other farmers' bookings)
+- **Success Response (200 OK - IN_QUEUE)**:
+```json
+{
+  "success": true,
+  "data": {
+    "booking_id": 101,
+    "token": "BDW-002",
+    "centre_id": 1,
+    "status": "IN_QUEUE",
+    "queue_position": 2,
+    "people_ahead": 1,
+    "estimated_wait_minutes": 15,
+    "currently_processing": "BDW-001"
+  }
+}
+```
+- **Success Response (200 OK - Degraded Redis Mode)**:
+```json
+{
+  "success": true,
+  "data": {
+    "booking_id": 101,
+    "status": "IN_QUEUE",
+    "queue_available": false,
+    "message": "Live queue temporarily unavailable"
+  }
+}
+```
+
+---
+
+### 3.3 Start Processing Booking
+- **HTTP Method**: `POST`
+- **URL**: `/api/queue/:bookingId/start`
+- **Auth**: Bearer JWT
+- **Role**: `OFFICER`, `ADMIN` (Farmer gets `403 Forbidden`)
+- **Success Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "booking_id": 100,
+    "token": "BDW-001",
+    "centre_id": 1,
+    "status": "PROCESSING",
+    "currently_processing": "BDW-001"
+  }
+}
+```
+- **Error Response (409 Conflict)**:
+```json
+{
+  "success": false,
+  "error": "Centre already has an active processing booking: Token BDW-001 (#100). Finish or complete it first."
 }
 ```
 
@@ -447,39 +527,108 @@ Reply 2 to DISPUTE
 
 ## 7. Admin Module (`/api/admin`)
 
-### 7.1 Overview Metrics
+### 7.1 Real-Time Admin Overview
 - **HTTP Method**: `GET`
-- **URL**: `/api/admin/overview`
+- **URL**: `/api/admin/overview?date=2026-09-10`
 - **Auth**: Bearer JWT
-- **Role**: `ADMIN`
-- **Success Response (200 OK)**:
+- **Role**: `ADMIN` (`FARMER` and `OFFICER` receive HTTP 403 Forbidden)
+- **Query Parameters**:
+  - `date` (optional, default: server/today's date in `YYYY-MM-DD` format)
+- **Read-Only Guarantee**: `GET /api/admin/overview` is read-only and strictly never mutates users, bookings, slots, procurements, payments, or Redis queue state.
+- **Data Responsibility Split**:
+  - **PostgreSQL**: Single source of truth for registered farmer counts, booking status counts, procurement totals, payment status counts, and centre metadata.
+  - **Redis**: Fast live queue length (`queue:{centreId}:{date}`) and active serving token (`processing:{centreId}:{date}`).
+- **Redis Degraded Behavior**: If Redis fails or is unreachable, PostgreSQL metrics operate normally and `queue_available` is set to `false` with `queue_length: null` and `currently_processing: null`. Zero/fake queue counts are never fabricated.
+
+#### Success Response (200 OK - Healthy Redis Mode)
 ```json
 {
   "success": true,
   "data": {
-    "total_bookings": 150,
-    "completed_procurements": 98,
-    "total_procured_kg": 470400,
-    "total_payout_amount": 10701600,
-    "active_queue_count": 22,
-    "payment_breakdown": {
-      "RECORDED": 20,
-      "INITIATED": 30,
-      "PROCESSING": 18,
-      "CREDITED": 30
-    }
+    "date": "2026-09-10",
+    "queue_available": true,
+    "farmers": {
+      "total": 125
+    },
+    "bookings": {
+      "total": 80,
+      "booked": 20,
+      "arrived": 10,
+      "in_queue": 35,
+      "processing": 5,
+      "completed": 10
+    },
+    "procurement": {
+      "completed_count": 10,
+      "total_weight_kg": 42000,
+      "total_amount": 955500
+    },
+    "payments": {
+      "recorded": 4,
+      "initiated": 2,
+      "processing": 2,
+      "credited": 2
+    },
+    "centres": [
+      {
+        "centre_id": 1,
+        "centre_name": "Burdwan Central Procurement Centre",
+        "centre_code": "BDW-01",
+        "queue_length": 35,
+        "currently_processing": "BDW-023"
+      }
+    ]
   }
 }
 ```
 
-### 7.2 List Bookings
-- **HTTP Method**: `GET`
-- **URL**: `/api/admin/bookings`
-- **Auth**: Bearer JWT
-- **Role**: `ADMIN`
+#### Success Response (200 OK - Degraded Redis Mode)
+```json
+{
+  "success": true,
+  "data": {
+    "date": "2026-09-10",
+    "queue_available": false,
+    "farmers": {
+      "total": 125
+    },
+    "bookings": {
+      "total": 80,
+      "booked": 20,
+      "arrived": 10,
+      "in_queue": 35,
+      "processing": 5,
+      "completed": 10
+    },
+    "procurement": {
+      "completed_count": 10,
+      "total_weight_kg": 42000,
+      "total_amount": 955500
+    },
+    "payments": {
+      "recorded": 4,
+      "initiated": 2,
+      "processing": 2,
+      "credited": 2
+    },
+    "centres": [
+      {
+        "centre_id": 1,
+        "centre_name": "Burdwan Central Procurement Centre",
+        "centre_code": "BDW-01",
+        "queue_length": null,
+        "currently_processing": null
+      }
+    ]
+  }
+}
+```
 
-### 7.3 List Payments
-- **HTTP Method**: `GET`
-- **URL**: `/api/admin/payments`
-- **Auth**: Bearer JWT
-- **Role**: `ADMIN`
+#### Error Response (403 Forbidden - Role Guard)
+```json
+{
+  "success": false,
+  "error": "Access denied. Requires one of roles: ADMIN"
+}
+```
+
