@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 130" width="100" height="130">
+  <!-- Stylized Ashoka Lion Capital Emblem / Satyameva Jayate -->
+  <g fill="#1E3A8A">
+    <!-- Abacus Top Bar -->
+    <rect x="25" y="65" width="50" height="4" rx="2" fill="#D97706" />
+    
+    <!-- Central Ashoka Chakra -->
+    <circle cx="50" cy="77" r="7" fill="none" stroke="#1E3A8A" stroke-width="1.8" />
+    <circle cx="50" cy="77" r="2" fill="#1E3A8A" />
+    <line x1="50" y1="70" x2="50" y2="84" stroke="#1E3A8A" stroke-width="1" />
+    <line x1="43" y1="77" x2="57" y2="77" stroke="#1E3A8A" stroke-width="1" />
+    <line x1="45" y1="72" x2="55" y2="82" stroke="#1E3A8A" stroke-width="1" />
+    <line x1="45" y1="82" x2="55" y2="72" stroke="#1E3A8A" stroke-width="1" />
+    
+    <!-- Left Bull / Right Horse stylized -->
+    <path d="M30 73 Q35 77 30 81" stroke="#D97706" stroke-width="1.5" fill="none" />
+    <path d="M70 73 Q65 77 70 81" stroke="#D97706" stroke-width="1.5" fill="none" />
+    
+    <!-- Bell shaped inverted lotus base -->
+    <path d="M22 86 Q50 94 78 86 Q72 100 50 101 Q28 100 22 86 Z" fill="#D97706" opacity="0.9" />
+    
+    <!-- Plinth / Base lines -->
+    <rect x="18" y="102" width="64" height="4" rx="1" fill="#1E3A8A" />
+    <rect x="12" y="108" width="76" height="5" rx="1" fill="#0F2253" />
+    
+    <!-- Stylized Lions -->
+    <!-- Center Lion Face -->
+    <path d="M42 22 C42 16 58 16 58 22 C61 28 60 38 58 45 C55 52 53 58 50 63 C47 58 45 52 42 45 C40 38 39 28 42 22 Z" fill="#1E3A8A" />
+    <circle cx="47" cy="30" r="1.5" fill="#FFF" />
+    <circle cx="53" cy="30" r="1.5" fill="#FFF" />
+    <path d="M46 36 Q50 39 54 36" stroke="#FFF" stroke-width="1" fill="none" />
+    <!-- Center Lion Mane -->
+    <path d="M38 25 C34 32 35 48 42 56 C38 48 37 35 42 25 Z" fill="#D97706" />
+    <path d="M62 25 C66 32 65 48 58 56 C62 48 63 35 58 25 Z" fill="#D97706" />
+    
+    <!-- Left Lion Head -->
+    <path d="M30 28 C26 32 26 44 32 50 C34 44 35 34 38 30 Z" fill="#1E3A8A" />
+    <path d="M25 35 C23 42 25 50 30 55 C27 48 26 40 28 35 Z" fill="#D97706" />
+    
+    <!-- Right Lion Head -->
+    <path d="M70 28 C74 32 74 44 68 50 C66 44 65 34 62 30 Z" fill="#1E3A8A" />
+    <path d="M75 35 C77 42 75 50 70 55 C73 48 74 40 72 35 Z" fill="#D97706" />
+    
+    <!-- Satyameva Jayate (सत्यमेव जयते) in Devanagari script stylization -->
+    <text x="50" y="122" font-family="'Noto Sans Devanagari', 'Mangal', serif" font-size="7" font-weight="bold" text-anchor="middle" fill="#1E3A8A" letter-spacing="1">सत्यमेव जयते</text>
+  </g>
+</svg>
