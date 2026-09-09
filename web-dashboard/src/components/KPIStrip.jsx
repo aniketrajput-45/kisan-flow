@@ -6,13 +6,13 @@ const KPIStrip = ({ kpiData }) => {
   const { t } = useLanguage();
 
   const {
-    totalTokensToday = 48,
-    servedTokens = 31,
-    pendingTokens = 17,
-    procuredWeightTons = 155.8,
-    availableBardanaBags = 3420,
-    allocatedBardanaBags = 1850,
-    currentServingToken = 'BDW-031',
+    totalTokensToday = '—',
+    servedTokens = '—',
+    pendingTokens = '—',
+    procuredWeightTons = '—',
+    availableBardanaBags = '—',
+    allocatedBardanaBags = '—',
+    currentServingToken = '—',
   } = kpiData || {};
 
   return (

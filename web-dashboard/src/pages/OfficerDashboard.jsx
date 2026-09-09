@@ -24,7 +24,6 @@ const OfficerDashboard = () => {
 
   useEffect(() => {
     loadKpi();
-    handleSearchBooking('BDW-001');
   }, []);
 
   const loadKpi = async () => {
@@ -162,7 +161,11 @@ const OfficerDashboard = () => {
         </div>
 
         {/* Section 1: KPI Strip */}
-        <KPIStrip kpiData={kpiData} />
+        <KPIStrip kpiData={{
+          currentServingToken: queueInfo?.currently_processing || selectedBooking?.token_number || '—',
+          servedTokens: '—',
+          pendingTokens: queueInfo?.people_ahead !== undefined && queueInfo?.people_ahead !== null ? queueInfo.people_ahead : '—',
+        }} />
 
         {/* Section 2: Token Search & Verification */}
         <TokenSearch

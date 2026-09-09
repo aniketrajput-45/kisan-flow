@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 const TokenSearch = ({ onSearch, loading, error }) => {
   const { t } = useLanguage();
-  const [tokenInput, setTokenInput] = useState('BDW-001');
+  const [tokenInput, setTokenInput] = useState('');
   const [showQrMock, setShowQrMock] = useState(false);
 
   const handleSubmit = (e) => {
