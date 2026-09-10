@@ -60,9 +60,7 @@ const ProcurementForm = ({ booking, onSubmit, isSubmitting }) => {
   const calculatedPayout = (parseFloat(weightKg || 0) * MSP_RATE_PER_KG).toFixed(2);
 
   // Clean crop display based on language
-  const cropDisplay = lang === 'hi' 
-    ? (booking.crop?.includes('Paddy') ? 'धान (Paddy - Common)' : 'गेहूँ (Wheat - Sharbati)')
-    : (booking.crop?.includes('Paddy') ? 'Paddy (Common)' : 'Wheat (Sharbati)');
+  const cropDisplay = booking.crop || (lang === 'hi' ? 'गेहूँ (Wheat)' : 'Wheat');
 
   return (
     <div className="gov-card rounded-lg shadow-md border border-slate-300 overflow-hidden mb-8 animate-fadeIn">

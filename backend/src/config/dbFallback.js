@@ -32,8 +32,12 @@ function setupDbFallback(pool) {
 
   pool.connect = async () => {
     try {
-      return await originalConnect();
+      const client = await originalConnect();
+      pool._useRealPostgres = true;
+      seedDefaultUsers(pool);
+      return client;
     } catch (err) {
+      pool._useRealPostgres = false;
       if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED') || process.env.USE_MOCK_DB === 'true') {
         return {
           query: pool.query,
@@ -44,7 +48,28 @@ function setupDbFallback(pool) {
     }
   };
 
+async function seedDefaultUsers(pool) {
+  try {
+    const existing = await pool.query('SELECT id FROM users WHERE phone = $1', ['9876543210']);
+    if (existing.rows.length === 0) {
+      const bcrypt = require('bcryptjs');
+      const hash = await bcrypt.hash('password123', 10);
+      await pool.query(
+        `INSERT INTO users (name, phone, role, password_hash)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (phone) DO NOTHING`,
+        ['Ramesh Kumar', '9876543210', 'FARMER', hash]
+      );
+    }
+  } catch (e) {
+    // Non-fatal
+  }
+}
+
   pool.query = (text, params) => {
+    if (pool._useRealPostgres) {
+      return originalQuery(text, params);
+    }
     return new Promise((resolve, reject) => {
       try {
         const queryStr = typeof text === 'string' ? text : text.text;
@@ -79,18 +104,73 @@ function setupDbFallback(pool) {
           return resolve({ rows: memoryDb.centres });
         }
 
-        if (queryStr.includes('SELECT id, centre_id, slot_date, start_time, end_time, capacity, booked_count')) {
-          const [centreId, date] = params;
-          const filtered = memoryDb.slots
-            .filter(s => String(s.centre_id) === String(centreId) && String(s.slot_date) === String(date))
-            .map(s => ({ ...s, available_count: s.capacity - s.booked_count }));
-          return resolve({ rows: filtered });
+        if (queryStr.includes('WHERE centre_id = $1 AND slot_date = $2')) {
+          const centreId = params[0];
+          const date = params[1] ? String(params[1]).split('T')[0] : new Date().toISOString().split('T')[0];
+          
+          let filtered = memoryDb.slots.filter(
+            s => String(s.centre_id) === String(centreId) && String(s.slot_date).split('T')[0] === date
+          );
+
+          if (filtered.length === 0) {
+            // Auto-generate 4 standard slots for any date requested
+            const defaultTimes = [
+              ['09:00:00', '11:00:00'],
+              ['11:00:00', '13:00:00'],
+              ['14:00:00', '16:00:00'],
+              ['16:00:00', '18:00:00'],
+            ];
+            filtered = defaultTimes.map(([st, et]) => {
+              const newSlot = {
+                id: memoryDb.slots.length + 1,
+                centre_id: Number(centreId),
+                slot_date: date,
+                start_time: st,
+                end_time: et,
+                capacity: 50,
+                booked_count: 0,
+              };
+              memoryDb.slots.push(newSlot);
+              return newSlot;
+            });
+          }
+
+          const rows = filtered.map(s => ({
+            ...s,
+            slot_date: String(s.slot_date).split('T')[0],
+            available_count: s.capacity - s.booked_count,
+          }));
+          return resolve({ rows });
         }
 
-        if (queryStr.includes('SELECT id, centre_id, slot_date, capacity, booked_count')) {
+        if (queryStr.includes('INSERT INTO slots')) {
+          const centreId = params[0];
+          const date = params[1] ? String(params[1]).split('T')[0] : new Date().toISOString().split('T')[0];
+          const defaultTimes = [
+            ['09:00:00', '11:00:00'],
+            ['11:00:00', '13:00:00'],
+            ['14:00:00', '16:00:00'],
+            ['16:00:00', '18:00:00'],
+          ];
+          const inserted = defaultTimes.map(([st, et]) => {
+            const newSlot = {
+              id: memoryDb.slots.length + 1,
+              centre_id: Number(centreId),
+              slot_date: date,
+              start_time: st,
+              end_time: et,
+              capacity: 50,
+              booked_count: 0,
+            };
+            memoryDb.slots.push(newSlot);
+            return newSlot;
+          });
+          return resolve({ rows: inserted });
+        }
+
+        if (queryStr.includes('FROM slots') && queryStr.includes('WHERE id = $1')) {
           const [slotId] = params;
           const slot = memoryDb.slots.find(s => String(s.id) === String(slotId));
-          // Enforce capacity limit in mock DB adapter
           if (slot && slot.booked_count >= slot.capacity) {
             return resolve({ rows: [{ ...slot, booked_count: slot.capacity }] });
           }
@@ -109,7 +189,7 @@ function setupDbFallback(pool) {
           return resolve({ rows: centre ? [{ code: centre.code }] : [] });
         }
 
-        if (queryStr.includes('SELECT COUNT(*) AS total FROM bookings WHERE centre_id = $1')) {
+        if (queryStr.includes('COUNT(*)') && queryStr.includes('FROM bookings') && queryStr.includes('WHERE centre_id = $1 AND booking_date = $2')) {
           const [centreId, date] = params;
           const total = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId) && String(b.booking_date) === String(date)).length;
           return resolve({ rows: [{ total }] });

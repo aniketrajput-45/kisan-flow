@@ -19,14 +19,40 @@ class FarmerService {
       throw err;
     }
 
-    const result = await pool.query(
-      `SELECT id, centre_id, slot_date, start_time, end_time, capacity, booked_count,
+    const cleanDate = String(date).split('T')[0];
+
+    let result = await pool.query(
+      `SELECT id, centre_id, slot_date::text AS slot_date, start_time, end_time, capacity, booked_count,
               (capacity - booked_count) AS available_count
        FROM slots
        WHERE centre_id = $1 AND slot_date = $2
        ORDER BY start_time ASC`,
-      [centreId, date]
+      [centreId, cleanDate]
     );
+
+    if (result.rows.length === 0) {
+      try {
+        await pool.query(
+          `INSERT INTO slots (centre_id, slot_date, start_time, end_time, capacity, booked_count)
+           VALUES 
+             ($1, $2, '09:00:00', '11:00:00', 50, 0),
+             ($1, $2, '11:00:00', '13:00:00', 50, 0),
+             ($1, $2, '14:00:00', '16:00:00', 50, 0),
+             ($1, $2, '16:00:00', '18:00:00', 50, 0)`,
+          [centreId, cleanDate]
+        );
+        result = await pool.query(
+          `SELECT id, centre_id, slot_date::text AS slot_date, start_time, end_time, capacity, booked_count,
+                  (capacity - booked_count) AS available_count
+           FROM slots
+           WHERE centre_id = $1 AND slot_date = $2
+           ORDER BY start_time ASC`,
+          [centreId, cleanDate]
+        );
+      } catch (e) {
+        // Non-fatal if concurrency collision
+      }
+    }
 
     return result.rows;
   }
