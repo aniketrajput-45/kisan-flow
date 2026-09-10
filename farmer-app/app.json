@@ -2,6 +2,7 @@
   "expo": {
     "name": "KisanFlow Farmer",
     "slug": "kisanflow-farmer",
+    "scheme": "kisanflow",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
