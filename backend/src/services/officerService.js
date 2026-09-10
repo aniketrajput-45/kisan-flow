@@ -52,7 +52,7 @@ class OfficerService {
 
       // 1. Lock and read booking with user & centre info
       const bookingRes = await client.query(
-        `SELECT b.id, b.user_id, b.centre_id, b.slot_id, b.crop, b.status,
+        `SELECT b.id, b.user_id, b.centre_id, b.slot_id, b.booking_date, b.crop, b.status,
                 u.name AS farmer_name, u.phone AS farmer_phone,
                 c.name AS centre_name
          FROM bookings b
