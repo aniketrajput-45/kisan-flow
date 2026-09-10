@@ -10,6 +10,7 @@ import {
 import { getQueueStatus, markArrival } from '../api/queue';
 import StatusBadge from '../components/StatusBadge';
 import ErrorAlert from '../components/ErrorAlert';
+import BookingTimeline from '../components/BookingTimeline';
 
 const POLLING_INTERVAL_MS = 6000; // 6 seconds live poll
 
@@ -58,6 +59,7 @@ export const QueueScreen = ({ bookingId, onBack, onGoToPayment }) => {
         setLastRefreshed(new Date());
       }
     } catch (err) {
+      if (err?.status === 401) return;
       if (isMountedRef.current && isInitial) {
         setError(err);
       }
@@ -129,6 +131,7 @@ export const QueueScreen = ({ bookingId, onBack, onGoToPayment }) => {
         </View>
       ) : queueData ? (
         <View>
+          <BookingTimeline currentStatus={currentStatus} />
           {/* STEP A: Status = BOOKED (Farmer has not arrived at procurement centre yet) */}
           {currentStatus === 'BOOKED' && (
             <View style={styles.card}>

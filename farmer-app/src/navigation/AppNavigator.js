@@ -7,7 +7,10 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import Navbar from '../components/Navbar';
+import { LanguageProvider } from '../context/LanguageContext';
+import { Navbar } from '../components/Navbar';
+import NotificationModal from '../components/NotificationModal';
+import ProfileHelpModal from '../components/ProfileHelpModal';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -16,13 +19,17 @@ import BookingDetailsScreen from '../screens/BookingDetailsScreen';
 import QueueScreen from '../screens/QueueScreen';
 import PaymentScreen from '../screens/PaymentScreen';
 
-export const AppNavigator = () => {
+export const AppNavigatorContent = () => {
   const { token, loading } = useAuth();
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
-  const [currentTab, setCurrentTab] = useState('home'); // 'home' | 'booking' | 'my-bookings' | 'queue' | 'payment'
+  const [currentTab, setCurrentTab] = useState('home'); // 'home' | 'booking' | 'my-bookings' | 'queue' | 'payment' | 'details'
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [selectedQueueBookingId, setSelectedQueueBookingId] = useState(null);
   const [selectedPaymentBookingId, setSelectedPaymentBookingId] = useState(null);
+
+  // Modals state
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
 
   if (loading) {
     return (
@@ -49,7 +56,12 @@ export const AppNavigator = () => {
   // Main Farmer Application Shell
   return (
     <SafeAreaView style={styles.appContainer}>
-      <Navbar currentTab={currentTab} onTabChange={(tab) => setCurrentTab(tab)} />
+      <Navbar
+        currentTab={currentTab}
+        onTabChange={(tab) => setCurrentTab(tab)}
+        onOpenNotifications={() => setNotificationsVisible(true)}
+        onOpenProfile={() => setProfileVisible(true)}
+      />
 
       <View style={styles.mainContent}>
         {currentTab === 'home' && (
@@ -78,6 +90,7 @@ export const AppNavigator = () => {
               setSelectedPaymentBookingId(newBooking.id);
               setCurrentTab('details');
             }}
+            onGoToMyBookings={() => setCurrentTab('my-bookings')}
           />
         )}
 
@@ -132,9 +145,26 @@ export const AppNavigator = () => {
           />
         )}
       </View>
+
+      {/* Global Modals */}
+      <NotificationModal
+        visible={notificationsVisible}
+        onClose={() => setNotificationsVisible(false)}
+      />
+
+      <ProfileHelpModal
+        visible={profileVisible}
+        onClose={() => setProfileVisible(false)}
+      />
     </SafeAreaView>
   );
 };
+
+export const AppNavigator = () => (
+  <LanguageProvider>
+    <AppNavigatorContent />
+  </LanguageProvider>
+);
 
 const styles = StyleSheet.create({
   loadingContainer: {

@@ -1,25 +1,42 @@
 // In-memory database store for testing/verification when local Postgres is not running
 class MemoryDb {
   constructor() {
-    this.users = [];
+    const bcrypt = require('bcryptjs');
+    const demoHash = bcrypt.hashSync('password123', 10);
+
+    this.users = [
+      { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER', password_hash: demoHash },
+      { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER', password_hash: demoHash },
+      { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN', password_hash: demoHash },
+    ];
     this.centres = [
       { id: 1, name: 'Burdwan Central Procurement Centre', code: 'BDW-01', district: 'Burdwan', state: 'West Bengal', capacity: 500, is_active: true },
       { id: 2, name: 'Durgapur Sub-Division Procurement Centre', code: 'DGP-01', district: 'Paschim Bardhaman', state: 'West Bengal', capacity: 400, is_active: true },
     ];
     this.slots = [
-      { id: 1, centre_id: 1, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 50, booked_count: 0 },
-      { id: 2, centre_id: 1, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 1, booked_count: 0 }, // Capacity 1 for concurrency test
+      { id: 1, centre_id: 1, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 8, booked_count: 0 },
+      { id: 2, centre_id: 1, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 8, booked_count: 0 },
+      { id: 3, centre_id: 1, slot_date: '2026-09-10', start_time: '14:00:00', end_time: '16:00:00', capacity: 8, booked_count: 0 },
+      { id: 4, centre_id: 2, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 8, booked_count: 0 },
+      { id: 5, centre_id: 2, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 8, booked_count: 0 },
+      { id: 6, centre_id: 2, slot_date: '2026-09-10', start_time: '14:00:00', end_time: '16:00:00', capacity: 8, booked_count: 0 },
     ];
     this.bookings = [];
-    this.nextUserId = 1;
+    this.nextUserId = 4;
     this.nextBookingId = 100;
   }
 
   reset() {
-    this.users = [];
+    const bcrypt = require('bcryptjs');
+    const demoHash = bcrypt.hashSync('password123', 10);
+    this.users = [
+      { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER', password_hash: demoHash },
+      { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER', password_hash: demoHash },
+      { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN', password_hash: demoHash },
+    ];
     this.bookings = [];
-    this.slots[1].booked_count = 0;
-    this.nextUserId = 1;
+    this.slots.forEach(s => s.booked_count = 0);
+    this.nextUserId = 4;
     this.nextBookingId = 100;
   }
 }
@@ -73,6 +90,12 @@ async function seedDefaultUsers(pool) {
     return new Promise((resolve, reject) => {
       try {
         const queryStr = typeof text === 'string' ? text : text.text;
+
+        if (queryStr.includes('SELECT id FROM users WHERE id = $1')) {
+          const userId = params[0];
+          const existing = memoryDb.users.filter(u => String(u.id) === String(userId));
+          return resolve({ rows: existing });
+        }
 
         if (queryStr.includes('SELECT id FROM users WHERE phone = $1')) {
           const phone = params[0];
