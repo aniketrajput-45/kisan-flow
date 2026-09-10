@@ -27,11 +27,11 @@ const AdminKPIs = ({ stats }) => {
         </div>
         <div className="mt-2">
           <div className="text-2xl lg:text-3xl font-extrabold text-[#0F2253] font-mono">
-            {totalFarmers}
+            {activeCentresCount}
           </div>
           <div className="mt-2 text-[11px] text-slate-500 border-t border-slate-100 pt-2 flex items-center justify-between">
-            <span className="text-slate-600">Registered Farmers</span>
-            <span className="text-emerald-700 font-bold">{activeCentresCount} Active Centres</span>
+            <span className="text-slate-600">Registered Farmers: {totalFarmers}</span>
+            <span className="text-emerald-700 font-bold">Operational Centres</span>
           </div>
         </div>
       </div>
