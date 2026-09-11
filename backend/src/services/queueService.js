@@ -161,11 +161,18 @@ class QueueService {
    * Get Live Queue Status & ETA for a specific booking
    */
   async getQueueStatus(reqUser, bookingId) {
+    const parsedId = Number(bookingId);
+    if (!bookingId || isNaN(parsedId) || !Number.isInteger(parsedId) || parsedId <= 0) {
+      const err = new Error('Invalid booking ID');
+      err.statusCode = 400;
+      throw err;
+    }
+
     const bookingRes = await pool.query(
       `SELECT b.id, b.user_id, b.centre_id, b.booking_date, b.token_number, b.status
        FROM bookings b
        WHERE b.id = $1`,
-      [bookingId]
+      [parsedId]
     );
 
     if (bookingRes.rows.length === 0) {
@@ -303,8 +310,8 @@ class QueueService {
         throw err;
       }
 
-      if (booking.status === 'BOOKED') {
-        const err = new Error(`Booking #${bookingId} must be ARRIVED or IN_QUEUE before starting processing.`);
+      if (!['BOOKED', 'ARRIVED', 'IN_QUEUE'].includes(booking.status)) {
+        const err = new Error(`Booking #${bookingId} is in status '${booking.status}' and cannot be started.`);
         err.statusCode = 400;
         throw err;
       }
@@ -342,6 +349,26 @@ class QueueService {
       } catch (rErr) {
         redisHealthy = false;
         console.error('[Redis Update Failure on Start Processing]', rErr.message);
+      }
+
+      // Decoupled Turn Called SMS notification:
+      try {
+        const smsService = require('./smsService');
+        const farmerRes = await pool.query(
+          `SELECT u.phone AS farmer_phone, u.id AS farmer_id FROM bookings b JOIN users u ON b.user_id = u.id WHERE b.id = $1`,
+          [booking.id]
+        );
+        if (farmerRes.rows.length > 0) {
+          await smsService.sendQueueNotification({
+            bookingId: booking.id,
+            farmerPhone: farmerRes.rows[0].farmer_phone,
+            tokenNumber: booking.token_number,
+            messageType: 'TURN_CALLED',
+            farmerId: farmerRes.rows[0].farmer_id,
+          });
+        }
+      } catch (smsErr) {
+        console.error('[StartProcessing Turn Called SMS Error - Non-fatal]', smsErr.message);
       }
 
       return {
@@ -386,15 +413,15 @@ class QueueService {
   }
 
   /**
-   * Get active queue of farmers currently arrived / standing in line / processing at centre
+   * Get active queue of farmers currently in queue / processing at centre (strictly excluding COMPLETED)
    */
-  async getActiveQueue(centreId, targetDate) {
+  async getActiveQueue(centreId, targetDate, slotId) {
     let dateStr = targetDate;
     if (!dateStr || typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       dateStr = new Date().toISOString().split('T')[0];
     }
 
-    const query = `
+    let query = `
       SELECT b.id, b.user_id, b.centre_id, b.slot_id, b.booking_date, b.token_number, b.qr_code,
              b.crop, b.quantity_kg, b.status, b.created_at,
              u.name AS farmer_name, u.phone AS farmer_phone,
@@ -406,14 +433,23 @@ class QueueService {
       JOIN slots s ON b.slot_id = s.id
       WHERE (b.centre_id = $1 OR $1 IS NULL)
         AND b.booking_date = $2
-        AND b.status IN ('ARRIVED', 'IN_QUEUE', 'PROCESSING')
+        AND b.status IN ('BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING')
+        AND b.status != 'COMPLETED'
+    `;
+
+    const queryParams = [centreId ? parseInt(centreId, 10) : null, dateStr];
+    if (slotId) {
+      queryParams.push(parseInt(slotId, 10));
+      query += ` AND b.slot_id = $3`;
+    }
+
+    query += `
       ORDER BY 
         CASE WHEN b.status = 'PROCESSING' THEN 0 ELSE 1 END,
         b.id ASC
     `;
 
-    const centreParam = centreId ? parseInt(centreId, 10) : null;
-    const result = await pool.query(query, [centreParam, dateStr]);
+    const result = await pool.query(query, queryParams);
 
     const activeList = result.rows.map((row, index) => {
       const isProcessing = row.status === 'PROCESSING';

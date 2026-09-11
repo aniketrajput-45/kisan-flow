@@ -50,31 +50,41 @@ async function seed() {
     const centre1Id = centre1Res.rows[0].id;
     const centre2Id = centre2Res.rows[0].id;
 
-    // 3. Seed Slots for Demo Date (Tomorrow)
-    const demoDate = '2026-09-10';
+    // 3. Seed Slots for Today & Upcoming Demo Dates
+    const todayStr = new Date().toISOString().split('T')[0];
+    const demoDates = Array.from(new Set([
+      '2026-09-10',
+      '2026-09-11',
+      todayStr,
+      '2026-09-12',
+      '2026-09-13',
+      '2026-09-14',
+      '2026-09-15',
+    ]));
 
-    // Slots for Centre 1
-    const slotsCentre1 = [
+    const standardSlots = [
       { start: '09:00:00', end: '11:00:00', capacity: 50 },
       { start: '11:00:00', end: '13:00:00', capacity: 50 },
       { start: '14:00:00', end: '16:00:00', capacity: 50 },
+      { start: '16:00:00', end: '18:00:00', capacity: 50 },
     ];
 
-    for (const slot of slotsCentre1) {
-      await client.query(`
-        INSERT INTO slots (centre_id, slot_date, start_time, end_time, capacity, booked_count)
-        VALUES ($1, $2, $3, $4, $5, 0)
-        ON CONFLICT (id, centre_id) DO NOTHING;
-      `, [centre1Id, demoDate, slot.start, slot.end, slot.capacity]);
-    }
+    for (const dDate of demoDates) {
+      for (const slot of standardSlots) {
+        // Centre 1
+        await client.query(`
+          INSERT INTO slots (centre_id, slot_date, start_time, end_time, capacity, booked_count)
+          VALUES ($1, $2, $3, $4, $5, 0)
+          ON CONFLICT DO NOTHING;
+        `, [centre1Id, dDate, slot.start, slot.end, slot.capacity]);
 
-    // Slots for Centre 2
-    for (const slot of slotsCentre1) {
-      await client.query(`
-        INSERT INTO slots (centre_id, slot_date, start_time, end_time, capacity, booked_count)
-        VALUES ($1, $2, $3, $4, $5, 0)
-        ON CONFLICT (id, centre_id) DO NOTHING;
-      `, [centre2Id, demoDate, slot.start, slot.end, slot.capacity]);
+        // Centre 2
+        await client.query(`
+          INSERT INTO slots (centre_id, slot_date, start_time, end_time, capacity, booked_count)
+          VALUES ($1, $2, $3, $4, $5, 0)
+          ON CONFLICT DO NOTHING;
+        `, [centre2Id, dDate, slot.start, slot.end, slot.capacity]);
+      }
     }
 
     await client.query('COMMIT');

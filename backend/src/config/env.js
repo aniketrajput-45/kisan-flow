@@ -18,6 +18,14 @@ const config = {
   redis: {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    authToken: process.env.TWILIO_AUTH_TOKEN || '',
+    fromNumber: process.env.TWILIO_FROM_NUMBER || '',
+    statusCallbackUrl: process.env.TWILIO_STATUS_CALLBACK_URL || '',
+    enabled: process.env.TWILIO_ENABLED === 'true',
+    validateSignature: process.env.TWILIO_VALIDATE_SIGNATURE === 'true',
+  },
 };
 
 module.exports = config;

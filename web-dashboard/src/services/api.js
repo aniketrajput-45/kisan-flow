@@ -161,9 +161,13 @@ export const queueService = {
     }
   },
 
-  async getActiveQueue(centreId) {
+  async getActiveQueue(centreId, slotId) {
     try {
-      const url = centreId ? `/queue/active?centreId=${encodeURIComponent(centreId)}` : '/queue/active';
+      const params = new URLSearchParams();
+      if (centreId) params.append('centreId', centreId);
+      if (slotId && slotId !== 'ALL') params.append('slotId', slotId);
+      const queryString = params.toString();
+      const url = queryString ? `/queue/active?${queryString}` : '/queue/active';
       const response = await apiClient.get(url);
       if (response.data?.success) {
         return response.data.data;

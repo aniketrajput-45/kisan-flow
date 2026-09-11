@@ -1,76 +1,34 @@
 // In-memory database store for testing/verification when local Postgres is not running
 class MemoryDb {
   constructor() {
+    this.initDefaultUsers();
     this.centres = [
       { id: 1, name: 'Burdwan Central Procurement Centre', code: 'BDW-01', district: 'Burdwan', state: 'West Bengal', capacity: 500, is_active: true },
       { id: 2, name: 'Durgapur Sub-Division Procurement Centre', code: 'DGP-01', district: 'Paschim Bardhaman', state: 'West Bengal', capacity: 400, is_active: true },
     ];
     this.slots = [
-      { id: 1, centre_id: 1, slot_date: new Date().toISOString().split('T')[0], start_time: '09:00:00', end_time: '11:00:00', capacity: 50, booked_count: 2 },
-      { id: 2, centre_id: 1, slot_date: new Date().toISOString().split('T')[0], start_time: '11:00:00', end_time: '13:00:00', capacity: 50, booked_count: 1 },
+      { id: 1, centre_id: 1, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 50, booked_count: 0 },
+      { id: 2, centre_id: 1, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 1, booked_count: 0 }, // Capacity 1 for concurrency test
     ];
-    this.nextUserId = 10;
-    this.nextBookingId = 104;
-    this.seedDefaults();
+    this.bookings = [];
+    this.nextUserId = 4;
+    this.nextBookingId = 100;
   }
 
-  seedDefaults() {
-    const today = new Date().toISOString().split('T')[0];
+  initDefaultUsers() {
     this.users = [
-      { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER' },
-      { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER' },
-      { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN' },
-      { id: 4, name: 'Gurpreet Singh', phone: '9876543213', role: 'FARMER' },
-      { id: 5, name: 'Rajendra Verma', phone: '9876543214', role: 'FARMER' },
-    ];
-    this.bookings = [
-      {
-        id: 101,
-        user_id: 1,
-        centre_id: 1,
-        slot_id: 1,
-        booking_date: today,
-        token_number: 'BDW-001',
-        qr_code: 'KF-BKG-101-BDW-001',
-        crop: 'Wheat',
-        quantity_kg: 4800,
-        status: 'IN_QUEUE',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 102,
-        user_id: 4,
-        centre_id: 1,
-        slot_id: 1,
-        booking_date: today,
-        token_number: 'BDW-002',
-        qr_code: 'KF-BKG-102-BDW-002',
-        crop: 'Mustard',
-        quantity_kg: 4200,
-        status: 'IN_QUEUE',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 103,
-        user_id: 5,
-        centre_id: 1,
-        slot_id: 2,
-        booking_date: today,
-        token_number: 'BDW-003',
-        qr_code: 'KF-BKG-103-BDW-003',
-        crop: 'Gram',
-        quantity_kg: 3500,
-        status: 'ARRIVED',
-        created_at: new Date().toISOString(),
-      },
+      { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER', password_hash: 'mock_hash_password123', created_at: new Date() },
+      { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER', password_hash: 'mock_hash_password123', created_at: new Date() },
+      { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN', password_hash: 'mock_hash_password123', created_at: new Date() },
     ];
   }
 
   reset() {
-    this.seedDefaults();
+    this.initDefaultUsers();
+    this.bookings = [];
     this.slots[1].booked_count = 0;
-    this.nextUserId = 10;
-    this.nextBookingId = 104;
+    this.nextUserId = 4;
+    this.nextBookingId = 100;
   }
 }
 
@@ -80,45 +38,69 @@ function setupDbFallback(pool) {
   const originalQuery = pool.query.bind(pool);
   const originalConnect = pool.connect.bind(pool);
 
-  pool.connect = async () => {
-    try {
-      const client = await originalConnect();
-      pool._useRealPostgres = true;
-      seedDefaultUsers(pool);
-      return client;
-    } catch (err) {
-      pool._useRealPostgres = false;
-      if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED') || process.env.USE_MOCK_DB === 'true') {
-        return {
-          query: pool.query,
-          release: () => {},
-        };
-      }
-      throw err;
+  pool.connect = (cb) => {
+    if (typeof cb === 'function') {
+      originalConnect((err, client, release) => {
+        if (err) {
+          pool._useRealPostgres = false;
+          if (err.code === 'ECONNREFUSED' || (err.message && err.message.includes('ECONNREFUSED')) || process.env.USE_MOCK_DB === 'true') {
+            const mockClient = { query: pool.query, release: () => {} };
+            return cb(null, mockClient, () => {});
+          }
+          return cb(err);
+        }
+        pool._useRealPostgres = true;
+        seedDefaultUsers(client).finally(() => cb(null, client, release));
+      });
+      return;
     }
+
+    return new Promise((resolve, reject) => {
+      originalConnect((err, client, release) => {
+        if (err) {
+          pool._useRealPostgres = false;
+          if (err.code === 'ECONNREFUSED' || (err.message && err.message.includes('ECONNREFUSED')) || process.env.USE_MOCK_DB === 'true') {
+            const mockClient = { query: pool.query, release: () => {} };
+            return resolve(mockClient);
+          }
+          return reject(err);
+        }
+        pool._useRealPostgres = true;
+        seedDefaultUsers(client).finally(() => resolve(client));
+      });
+    });
   };
 
-async function seedDefaultUsers(pool) {
-  try {
-    const existing = await pool.query('SELECT id FROM users WHERE phone = $1', ['9876543210']);
-    if (existing.rows.length === 0) {
-      const bcrypt = require('bcryptjs');
-      const hash = await bcrypt.hash('password123', 10);
-      await pool.query(
-        `INSERT INTO users (name, phone, role, password_hash)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (phone) DO NOTHING`,
-        ['Ramesh Kumar', '9876543210', 'FARMER', hash]
-      );
+  async function seedDefaultUsers(client) {
+    if (pool._hasSeeded) return;
+    pool._hasSeeded = true;
+    try {
+      const existing = await client.query('SELECT id FROM users WHERE phone IN ($1, $2, $3)', ['9876543210', '9876543211', '9876543212']);
+      if (existing.rows.length < 3) {
+        const bcrypt = require('bcryptjs');
+        const hash = await bcrypt.hash('password123', 10);
+        const defaultUsers = [
+          ['Ramesh Kumar', '9876543210', 'FARMER', hash],
+          ['Suresh Sharma', '9876543211', 'OFFICER', hash],
+          ['Anita Roy', '9876543212', 'ADMIN', hash],
+        ];
+        for (const [name, phone, role, password_hash] of defaultUsers) {
+          await client.query(
+            `INSERT INTO users (name, phone, role, password_hash)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role, password_hash = EXCLUDED.password_hash`,
+            [name, phone, role, password_hash]
+          );
+        }
+      }
+    } catch (e) {
+      // Non-fatal
     }
-  } catch (e) {
-    // Non-fatal
   }
-}
 
-  pool.query = (text, params) => {
-    if (pool._useRealPostgres) {
-      return originalQuery(text, params);
+  pool.query = (text, params, cb) => {
+    if (process.env.USE_MOCK_DB !== 'true' && pool._useRealPostgres !== false) {
+      return originalQuery(text, params, cb);
     }
     return new Promise((resolve, reject) => {
       try {
@@ -239,6 +221,19 @@ async function seedDefaultUsers(pool) {
           return resolve({ rows: centre ? [{ code: centre.code }] : [] });
         }
 
+        if (queryStr.includes('SELECT token_number') && queryStr.includes('FROM bookings') && queryStr.includes('WHERE centre_id = $1')) {
+          const [centreId] = params;
+          const centreBookings = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId));
+          const last = centreBookings[centreBookings.length - 1];
+          return resolve({ rows: last ? [{ token_number: last.token_number }] : [] });
+        }
+
+        if (queryStr.includes('COUNT(*)') && queryStr.includes('FROM bookings') && queryStr.includes('WHERE centre_id = $1') && !queryStr.includes('booking_date = $2')) {
+          const [centreId] = params;
+          const total = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId)).length;
+          return resolve({ rows: [{ total }] });
+        }
+
         if (queryStr.includes('COUNT(*)') && queryStr.includes('FROM bookings') && queryStr.includes('WHERE centre_id = $1 AND booking_date = $2')) {
           const [centreId, date] = params;
           const total = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId) && String(b.booking_date) === String(date)).length;
@@ -290,6 +285,50 @@ async function seedDefaultUsers(pool) {
               end_time: slot.end_time,
             }],
           });
+        }
+
+        if (queryStr.includes('FROM bookings b') && queryStr.includes('JOIN users u') && queryStr.includes('JOIN slots s')) {
+          const centreParam = params[0];
+          const dateParam = params[1] ? String(params[1]).split('T')[0] : null;
+          const slotParam = params[2];
+          const active = memoryDb.bookings
+            .filter(b => {
+              const matchesCentre = !centreParam || String(b.centre_id) === String(centreParam);
+              const matchesSlot = !slotParam || String(b.slot_id) === String(slotParam);
+              const isStatusActive = ['BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING'].includes(b.status) && b.status !== 'COMPLETED';
+              return matchesCentre && matchesSlot && isStatusActive;
+            })
+            .map(b => {
+              const farmer = memoryDb.users.find(u => String(u.id) === String(b.user_id)) || {};
+              const centre = memoryDb.centres.find(c => String(c.id) === String(b.centre_id)) || {};
+              const slot = memoryDb.slots.find(s => String(s.id) === String(b.slot_id)) || {};
+              return {
+                id: b.id,
+                user_id: b.user_id,
+                centre_id: b.centre_id,
+                slot_id: b.slot_id,
+                booking_date: b.booking_date,
+                token_number: b.token_number,
+                qr_code: b.qr_code,
+                crop: b.crop,
+                quantity_kg: b.quantity_kg,
+                status: b.status,
+                created_at: b.created_at,
+                farmer_name: farmer.name || 'Ramesh Kumar',
+                farmer_phone: farmer.phone || '9876543210',
+                centre_name: centre.name || 'Burdwan Central Procurement Centre',
+                centre_code: centre.code || 'BDW-01',
+                start_time: slot.start_time || '09:00:00',
+                end_time: slot.end_time || '11:00:00',
+              };
+            })
+            .sort((a, b) => {
+              if (a.status === 'PROCESSING' && b.status !== 'PROCESSING') return -1;
+              if (b.status === 'PROCESSING' && a.status !== 'PROCESSING') return 1;
+              return a.id - b.id;
+            });
+
+          return resolve({ rows: active });
         }
 
         if (queryStr.includes('FROM bookings b') && queryStr.includes('WHERE b.user_id = $1')) {
@@ -344,23 +383,10 @@ async function seedDefaultUsers(pool) {
           return resolve({ rows: activeProcessing });
         }
 
-        if (queryStr.includes('FROM bookings') && (queryStr.includes('WHERE b.id = $1') || queryStr.includes('WHERE id = $1'))) {
+        if (queryStr.includes('FROM bookings') && !queryStr.includes('JOIN') && (queryStr.includes('WHERE b.id = $1') || queryStr.includes('WHERE id = $1'))) {
           const [bookingId] = params;
           const booking = memoryDb.bookings.find(b => String(b.id) === String(bookingId));
-          if (!booking) return resolve({ rows: [] });
-          const farmer = memoryDb.users.find(u => String(u.id) === String(booking.user_id)) || {};
-          const centre = memoryDb.centres.find(c => String(c.id) === String(booking.centre_id)) || {};
-          const slot = memoryDb.slots.find(s => String(s.id) === String(booking.slot_id)) || {};
-          return resolve({
-            rows: [{
-              ...booking,
-              farmer_name: farmer.name || 'Ramesh Kumar',
-              farmer_phone: farmer.phone || '9876543210',
-              centre_name: centre.name || 'Burdwan Central Procurement Centre',
-              start_time: slot.start_time || '09:00:00',
-              end_time: slot.end_time || '11:00:00',
-            }],
-          });
+          return resolve({ rows: booking ? [booking] : [] });
         }
 
         if (queryStr.includes('SELECT id FROM procurements WHERE booking_id = $1')) {
@@ -423,47 +449,6 @@ async function seedDefaultUsers(pool) {
           const booking = memoryDb.bookings.find(b => String(b.id) === String(bookingId));
           if (booking) booking.status = 'PROCESSING';
           return resolve({ rows: [] });
-        }
-
-        if (queryStr.includes('FROM bookings b') && queryStr.includes("status IN ('ARRIVED', 'IN_QUEUE', 'PROCESSING')")) {
-          const centreParam = params[0];
-          const active = memoryDb.bookings
-            .filter(b => {
-              const matchesCentre = !centreParam || String(b.centre_id) === String(centreParam);
-              const isStatusActive = ['ARRIVED', 'IN_QUEUE', 'PROCESSING'].includes(b.status);
-              return matchesCentre && isStatusActive;
-            })
-            .map(b => {
-              const farmer = memoryDb.users.find(u => String(u.id) === String(b.user_id)) || {};
-              const centre = memoryDb.centres.find(c => String(c.id) === String(b.centre_id)) || {};
-              const slot = memoryDb.slots.find(s => String(s.id) === String(b.slot_id)) || {};
-              return {
-                id: b.id,
-                user_id: b.user_id,
-                centre_id: b.centre_id,
-                slot_id: b.slot_id,
-                booking_date: b.booking_date,
-                token_number: b.token_number,
-                qr_code: b.qr_code,
-                crop: b.crop,
-                quantity_kg: b.quantity_kg,
-                status: b.status,
-                created_at: b.created_at,
-                farmer_name: farmer.name || 'Ramesh Kumar',
-                farmer_phone: farmer.phone || '9876543210',
-                centre_name: centre.name || 'Burdwan Central Procurement Centre',
-                centre_code: centre.code || 'BDW-01',
-                start_time: slot.start_time || '09:00:00',
-                end_time: slot.end_time || '11:00:00',
-              };
-            })
-            .sort((a, b) => {
-              if (a.status === 'PROCESSING' && b.status !== 'PROCESSING') return -1;
-              if (b.status === 'PROCESSING' && a.status !== 'PROCESSING') return 1;
-              return a.id - b.id;
-            });
-
-          return resolve({ rows: active });
         }
 
         if (queryStr.includes('FROM payments') && (queryStr.includes('WHERE id = $1') || queryStr.includes('WHERE booking_id = $1') || queryStr.includes('WHERE pm.id = $1'))) {
@@ -581,7 +566,7 @@ async function seedDefaultUsers(pool) {
           return resolve({ rows });
         }
 
-        if (queryStr.includes('SELECT id, name, code, district, state FROM centres WHERE is_active = true')) {
+        if (queryStr.includes('FROM centres WHERE is_active = true')) {
           return resolve({ rows: memoryDb.centres });
         }
 

@@ -91,23 +91,6 @@ const OfficerDashboard = () => {
     handleSearchBooking(queueItem.token_number || queueItem.id);
   };
 
-  const handleMarkArrived = async () => {
-    if (!selectedBooking) return;
-    const bId = selectedBooking.id || selectedBooking.booking_id;
-    setActionLoading(true);
-    try {
-      const res = await queueService.arrive(bId);
-      setQueueInfo(res);
-      const updated = await officerService.lookupBooking(selectedBooking.token_number || selectedBooking.id);
-      setSelectedBooking(updated);
-      await loadActiveQueue();
-    } catch (err) {
-      alert('Mark Arrived Error: ' + err);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleStartProcessing = async () => {
     if (!selectedBooking) return;
     const bId = selectedBooking.id || selectedBooking.booking_id;
@@ -119,7 +102,7 @@ const OfficerDashboard = () => {
       setSelectedBooking(updated);
       await loadActiveQueue();
     } catch (err) {
-      alert('Start Processing Error: ' + err);
+      alert('Start Processing Error: ' + (err.message || err));
     } finally {
       setActionLoading(false);
     }
@@ -134,12 +117,12 @@ const OfficerDashboard = () => {
         booking: selectedBooking,
       });
 
+      // Clear selected booking so completed farmer disappears from the active form on screen
+      setSelectedBooking(null);
+      setQueueInfo(null);
+
       // Automatically reload the active queue so the processed farmer is removed
       await loadActiveQueue();
-
-      // Refresh booking details after procurement
-      const updated = await officerService.lookupBooking(selectedBooking.token_number || selectedBooking.id);
-      setSelectedBooking(updated);
     } catch (err) {
       alert('Procurement Error: ' + (err.message || err));
     } finally {
@@ -249,19 +232,7 @@ const OfficerDashboard = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              {(selectedBooking.booking_status === 'BOOKED' || selectedBooking.status === 'BOOKED') && (
-                <button
-                  type="button"
-                  onClick={handleMarkArrived}
-                  disabled={actionLoading}
-                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-1.5 transition shadow-xs"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{actionLoading ? 'Marking...' : 'Mark Arrived'}</span>
-                </button>
-              )}
-
-              {(selectedBooking.booking_status === 'ARRIVED' || selectedBooking.status === 'ARRIVED' || selectedBooking.booking_status === 'IN_QUEUE' || selectedBooking.status === 'IN_QUEUE') && (
+              {['BOOKED', 'ARRIVED', 'IN_QUEUE'].includes(selectedBooking.booking_status || selectedBooking.status) && (
                 <button
                   type="button"
                   onClick={handleStartProcessing}
@@ -269,15 +240,29 @@ const OfficerDashboard = () => {
                   className="bg-[#1E3A8A] hover:bg-[#0F2253] text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-1.5 transition shadow-xs"
                 >
                   <Play className="w-4 h-4 text-emerald-400" />
-                  <span>{actionLoading ? 'Starting...' : 'Start Processing'}</span>
+                  <span>{actionLoading ? 'Starting...' : 'Start Processing (प्रसंस्करण शुरू करें)'}</span>
                 </button>
+              )}
+
+              {(selectedBooking.booking_status === 'PROCESSING' || selectedBooking.status === 'PROCESSING') && (
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded border border-emerald-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  <span>In Weighment / Ready for Entry</span>
+                </span>
+              )}
+
+              {(selectedBooking.booking_status === 'COMPLETED' || selectedBooking.status === 'COMPLETED') && (
+                <span className="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded border border-slate-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Procurement Already Completed</span>
+                </span>
               )}
             </div>
           </div>
         )}
 
         {/* Section 3: Procurement Entry Form */}
-        {selectedBooking && (
+        {selectedBooking && selectedBooking.booking_status !== 'COMPLETED' && selectedBooking.status !== 'COMPLETED' && (
           <ProcurementForm
             booking={selectedBooking}
             onSubmit={handleProcurementSubmit}
