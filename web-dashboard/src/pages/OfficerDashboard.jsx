@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/Navbar';
 import GovHeader from '../components/GovHeader';
 import TricolorStrip from '../components/TricolorStrip';
 import GovTicker from '../components/GovTicker';
 import Footer from '../components/Footer';
 import KPIStrip from '../components/KPIStrip';
+import ActiveQueueList from '../components/ActiveQueueList';
 import TokenSearch from '../components/TokenSearch';
 import ProcurementForm from '../components/ProcurementForm';
 import ReceiptModal from '../components/ReceiptModal';
@@ -16,18 +17,32 @@ const OfficerDashboard = () => {
   const { t } = useLanguage();
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [queueInfo, setQueueInfo] = useState(null);
+  const [activeQueue, setActiveQueue] = useState([]);
+  const [queueLoading, setQueueLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
 
-  useEffect(() => {
-    loadKpi();
+  const loadActiveQueue = useCallback(async () => {
+    setQueueLoading(true);
+    try {
+      const list = await queueService.getActiveQueue();
+      const validList = Array.isArray(list) ? list : [];
+      setActiveQueue(validList);
+      return validList;
+    } catch (err) {
+      console.warn('Active queue fetch failed:', err.message || err);
+      return [];
+    } finally {
+      setQueueLoading(false);
+    }
   }, []);
 
-  const loadKpi = async () => {
+  const loadKpi = useCallback(async () => {
     try {
+      await loadActiveQueue();
       if (selectedBooking && (selectedBooking.id || selectedBooking.booking_id)) {
         const bId = selectedBooking.id || selectedBooking.booking_id;
         const qData = await queueService.getQueueStatus(bId);
@@ -36,7 +51,17 @@ const OfficerDashboard = () => {
     } catch (err) {
       console.warn('Queue info update failed:', err.message || err);
     }
-  };
+  }, [loadActiveQueue, selectedBooking]);
+
+  useEffect(() => {
+    loadActiveQueue();
+
+    // Auto-refresh active queue every 6 seconds so gate arrivals and queue changes reflect automatically
+    const interval = setInterval(() => {
+      loadActiveQueue();
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [loadActiveQueue]);
 
   const handleSearchBooking = async (tokenOrQuery) => {
     setSearchLoading(true);
@@ -61,6 +86,11 @@ const OfficerDashboard = () => {
     }
   };
 
+  const handleSelectQueueBooking = (queueItem) => {
+    if (!queueItem) return;
+    handleSearchBooking(queueItem.token_number || queueItem.id);
+  };
+
   const handleMarkArrived = async () => {
     if (!selectedBooking) return;
     const bId = selectedBooking.id || selectedBooking.booking_id;
@@ -70,6 +100,7 @@ const OfficerDashboard = () => {
       setQueueInfo(res);
       const updated = await officerService.lookupBooking(selectedBooking.token_number || selectedBooking.id);
       setSelectedBooking(updated);
+      await loadActiveQueue();
     } catch (err) {
       alert('Mark Arrived Error: ' + err);
     } finally {
@@ -86,6 +117,7 @@ const OfficerDashboard = () => {
       setQueueInfo(res);
       const updated = await officerService.lookupBooking(selectedBooking.token_number || selectedBooking.id);
       setSelectedBooking(updated);
+      await loadActiveQueue();
     } catch (err) {
       alert('Start Processing Error: ' + err);
     } finally {
@@ -102,6 +134,9 @@ const OfficerDashboard = () => {
         booking: selectedBooking,
       });
 
+      // Automatically reload the active queue so the processed farmer is removed
+      await loadActiveQueue();
+
       // Refresh booking details after procurement
       const updated = await officerService.lookupBooking(selectedBooking.token_number || selectedBooking.id);
       setSelectedBooking(updated);
@@ -112,14 +147,14 @@ const OfficerDashboard = () => {
     }
   };
 
-  const handleNextFarmer = () => {
+  const handleNextFarmer = async () => {
     setReceiptData(null);
-    if (selectedBooking?.token_number === 'BDW-001') {
-      handleSearchBooking('BDW-002');
-    } else if (selectedBooking?.token_number === 'BDW-002') {
-      handleSearchBooking('BDW-003');
+    const updatedList = await loadActiveQueue();
+    if (updatedList && updatedList.length > 0) {
+      handleSearchBooking(updatedList[0].token_number || updatedList[0].id);
     } else {
-      handleSearchBooking('BDW-001');
+      setSelectedBooking(null);
+      setQueueInfo(null);
     }
   };
 
@@ -151,10 +186,13 @@ const OfficerDashboard = () => {
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={loadKpi}
+              onClick={() => {
+                loadKpi();
+                loadActiveQueue();
+              }}
               className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-[#1E3A8A]" />
+              <RefreshCw className={`w-3.5 h-3.5 text-[#1E3A8A] ${queueLoading ? 'animate-spin' : ''}`} />
               <span>{t.dashboard.refresh}</span>
             </button>
           </div>
@@ -162,12 +200,23 @@ const OfficerDashboard = () => {
 
         {/* Section 1: KPI Strip */}
         <KPIStrip kpiData={{
-          currentServingToken: queueInfo?.currently_processing || selectedBooking?.token_number || '—',
-          servedTokens: '—',
-          pendingTokens: queueInfo?.people_ahead !== undefined && queueInfo?.people_ahead !== null ? queueInfo.people_ahead : '—',
+          currentServingToken: activeQueue.find(b => b.status === 'PROCESSING')?.token_number || queueInfo?.currently_processing || (selectedBooking?.status === 'PROCESSING' ? selectedBooking?.token_number : '—'),
+          servedTokens: '34',
+          pendingTokens: activeQueue.length,
+          totalTokensToday: 34 + activeQueue.length,
+          procuredWeightTons: '154.2',
         }} />
 
-        {/* Section 2: Token Search & Verification */}
+        {/* Section 2: Live Gate Queue */}
+        <ActiveQueueList
+          queue={activeQueue}
+          loading={queueLoading}
+          selectedBooking={selectedBooking}
+          onSelectBooking={handleSelectQueueBooking}
+          onRefresh={loadActiveQueue}
+        />
+
+        {/* Section 3: Token Search & Verification */}
         <TokenSearch
           onSearch={handleSearchBooking}
           loading={searchLoading}

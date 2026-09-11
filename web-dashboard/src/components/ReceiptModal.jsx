@@ -38,11 +38,10 @@ const ReceiptModal = ({ receiptData, onClose, onNextFarmer }) => {
   };
 
   const procId = procurement?.id || '101';
-  const totalAmount = procurement?.total_amount || (procurement?.weight_kg * 22.75);
+  const effectiveRate = procurement?.rate_per_kg || 24.25;
+  const totalAmount = procurement?.total_amount || payment?.amount || (procurement?.weight_kg * effectiveRate);
 
-  const cropName = lang === 'hi' 
-    ? (booking?.crop?.includes('Paddy') ? 'धान' : 'गेहूँ')
-    : (booking?.crop?.includes('Paddy') ? 'Paddy' : 'Wheat');
+  const cropName = procurement?.crop_name || booking?.crop || (lang === 'hi' ? 'गेहूँ (Wheat)' : 'Wheat');
 
   const simulatedSmsMessage = lang === 'hi'
     ? `खरीद पावती विवरण:\nकिसान: ${booking?.farmer_name || 'Ramesh Kumar'}\nफसल: ${cropName} (${procurement?.grade || 'Grade A'})\nवजन: ${procurement?.weight_kg || '5000'} किग्रा\nकुल देय राशि: ₹${parseFloat(totalAmount).toLocaleString('en-IN')}\n\nपुष्टि हेतु 1 भेजें\nविवाद दर्ज करने हेतु 2 भेजें`

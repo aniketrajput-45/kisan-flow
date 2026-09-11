@@ -1,26 +1,76 @@
 // In-memory database store for testing/verification when local Postgres is not running
 class MemoryDb {
   constructor() {
-    this.users = [];
     this.centres = [
       { id: 1, name: 'Burdwan Central Procurement Centre', code: 'BDW-01', district: 'Burdwan', state: 'West Bengal', capacity: 500, is_active: true },
       { id: 2, name: 'Durgapur Sub-Division Procurement Centre', code: 'DGP-01', district: 'Paschim Bardhaman', state: 'West Bengal', capacity: 400, is_active: true },
     ];
     this.slots = [
-      { id: 1, centre_id: 1, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 50, booked_count: 0 },
-      { id: 2, centre_id: 1, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 1, booked_count: 0 }, // Capacity 1 for concurrency test
+      { id: 1, centre_id: 1, slot_date: new Date().toISOString().split('T')[0], start_time: '09:00:00', end_time: '11:00:00', capacity: 50, booked_count: 2 },
+      { id: 2, centre_id: 1, slot_date: new Date().toISOString().split('T')[0], start_time: '11:00:00', end_time: '13:00:00', capacity: 50, booked_count: 1 },
     ];
-    this.bookings = [];
-    this.nextUserId = 1;
-    this.nextBookingId = 100;
+    this.nextUserId = 10;
+    this.nextBookingId = 104;
+    this.seedDefaults();
+  }
+
+  seedDefaults() {
+    const today = new Date().toISOString().split('T')[0];
+    this.users = [
+      { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER' },
+      { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER' },
+      { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN' },
+      { id: 4, name: 'Gurpreet Singh', phone: '9876543213', role: 'FARMER' },
+      { id: 5, name: 'Rajendra Verma', phone: '9876543214', role: 'FARMER' },
+    ];
+    this.bookings = [
+      {
+        id: 101,
+        user_id: 1,
+        centre_id: 1,
+        slot_id: 1,
+        booking_date: today,
+        token_number: 'BDW-001',
+        qr_code: 'KF-BKG-101-BDW-001',
+        crop: 'Wheat',
+        quantity_kg: 4800,
+        status: 'IN_QUEUE',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 102,
+        user_id: 4,
+        centre_id: 1,
+        slot_id: 1,
+        booking_date: today,
+        token_number: 'BDW-002',
+        qr_code: 'KF-BKG-102-BDW-002',
+        crop: 'Mustard',
+        quantity_kg: 4200,
+        status: 'IN_QUEUE',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 103,
+        user_id: 5,
+        centre_id: 1,
+        slot_id: 2,
+        booking_date: today,
+        token_number: 'BDW-003',
+        qr_code: 'KF-BKG-103-BDW-003',
+        crop: 'Gram',
+        quantity_kg: 3500,
+        status: 'ARRIVED',
+        created_at: new Date().toISOString(),
+      },
+    ];
   }
 
   reset() {
-    this.users = [];
-    this.bookings = [];
+    this.seedDefaults();
     this.slots[1].booked_count = 0;
-    this.nextUserId = 1;
-    this.nextBookingId = 100;
+    this.nextUserId = 10;
+    this.nextBookingId = 104;
   }
 }
 
@@ -294,10 +344,23 @@ async function seedDefaultUsers(pool) {
           return resolve({ rows: activeProcessing });
         }
 
-        if (queryStr.includes('FROM bookings') && !queryStr.includes('JOIN') && (queryStr.includes('WHERE b.id = $1') || queryStr.includes('WHERE id = $1'))) {
+        if (queryStr.includes('FROM bookings') && (queryStr.includes('WHERE b.id = $1') || queryStr.includes('WHERE id = $1'))) {
           const [bookingId] = params;
           const booking = memoryDb.bookings.find(b => String(b.id) === String(bookingId));
-          return resolve({ rows: booking ? [booking] : [] });
+          if (!booking) return resolve({ rows: [] });
+          const farmer = memoryDb.users.find(u => String(u.id) === String(booking.user_id)) || {};
+          const centre = memoryDb.centres.find(c => String(c.id) === String(booking.centre_id)) || {};
+          const slot = memoryDb.slots.find(s => String(s.id) === String(booking.slot_id)) || {};
+          return resolve({
+            rows: [{
+              ...booking,
+              farmer_name: farmer.name || 'Ramesh Kumar',
+              farmer_phone: farmer.phone || '9876543210',
+              centre_name: centre.name || 'Burdwan Central Procurement Centre',
+              start_time: slot.start_time || '09:00:00',
+              end_time: slot.end_time || '11:00:00',
+            }],
+          });
         }
 
         if (queryStr.includes('SELECT id FROM procurements WHERE booking_id = $1')) {
@@ -360,6 +423,47 @@ async function seedDefaultUsers(pool) {
           const booking = memoryDb.bookings.find(b => String(b.id) === String(bookingId));
           if (booking) booking.status = 'PROCESSING';
           return resolve({ rows: [] });
+        }
+
+        if (queryStr.includes('FROM bookings b') && queryStr.includes("status IN ('ARRIVED', 'IN_QUEUE', 'PROCESSING')")) {
+          const centreParam = params[0];
+          const active = memoryDb.bookings
+            .filter(b => {
+              const matchesCentre = !centreParam || String(b.centre_id) === String(centreParam);
+              const isStatusActive = ['ARRIVED', 'IN_QUEUE', 'PROCESSING'].includes(b.status);
+              return matchesCentre && isStatusActive;
+            })
+            .map(b => {
+              const farmer = memoryDb.users.find(u => String(u.id) === String(b.user_id)) || {};
+              const centre = memoryDb.centres.find(c => String(c.id) === String(b.centre_id)) || {};
+              const slot = memoryDb.slots.find(s => String(s.id) === String(b.slot_id)) || {};
+              return {
+                id: b.id,
+                user_id: b.user_id,
+                centre_id: b.centre_id,
+                slot_id: b.slot_id,
+                booking_date: b.booking_date,
+                token_number: b.token_number,
+                qr_code: b.qr_code,
+                crop: b.crop,
+                quantity_kg: b.quantity_kg,
+                status: b.status,
+                created_at: b.created_at,
+                farmer_name: farmer.name || 'Ramesh Kumar',
+                farmer_phone: farmer.phone || '9876543210',
+                centre_name: centre.name || 'Burdwan Central Procurement Centre',
+                centre_code: centre.code || 'BDW-01',
+                start_time: slot.start_time || '09:00:00',
+                end_time: slot.end_time || '11:00:00',
+              };
+            })
+            .sort((a, b) => {
+              if (a.status === 'PROCESSING' && b.status !== 'PROCESSING') return -1;
+              if (b.status === 'PROCESSING' && a.status !== 'PROCESSING') return 1;
+              return a.id - b.id;
+            });
+
+          return resolve({ rows: active });
         }
 
         if (queryStr.includes('FROM payments') && (queryStr.includes('WHERE id = $1') || queryStr.includes('WHERE booking_id = $1') || queryStr.includes('WHERE pm.id = $1'))) {

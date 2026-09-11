@@ -57,9 +57,24 @@ const updatePaymentStatus = async (req, res, next) => {
   }
 };
 
+const getMspRate = async (req, res, next) => {
+  try {
+    const { crop, grade, state } = req.query;
+    const mspService = require('../services/mspService');
+    const data = await mspService.getMspForCrop(crop, grade, state);
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   lookupBooking,
   recordProcurement,
   getPaymentByBooking,
   updatePaymentStatus,
+  getMspRate,
 };

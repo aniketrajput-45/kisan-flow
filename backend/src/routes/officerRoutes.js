@@ -14,4 +14,7 @@ router.post('/procurements', authenticate, requireRole('OFFICER', 'ADMIN'), offi
 router.get('/payments/:bookingId', authenticate, officerController.getPaymentByBooking);
 router.patch('/payments/:id/status', authenticate, requireRole('OFFICER', 'ADMIN'), officerController.updatePaymentStatus);
 
+// Live Crop MSP Rate
+router.get('/msp/rate', authenticate, officerController.getMspRate);
+
 module.exports = router;

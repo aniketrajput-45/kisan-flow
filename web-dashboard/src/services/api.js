@@ -104,6 +104,23 @@ export const officerService = {
       throw extractErrorMessage(err, 'Failed to record procurement');
     }
   },
+
+  async getMspRate(crop, grade, state) {
+    try {
+      const params = new URLSearchParams();
+      if (crop) params.append('crop', crop);
+      if (grade) params.append('grade', grade);
+      if (state) params.append('state', state);
+
+      const response = await apiClient.get(`/msp/rate?${params.toString()}`);
+      if (response.data?.success) {
+        return response.data.data;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
 };
 
 // 3. Queue Service
@@ -141,6 +158,20 @@ export const queueService = {
       throw new Error(response.data?.error || 'Failed to fetch queue status');
     } catch (err) {
       throw extractErrorMessage(err, 'Failed to fetch queue status');
+    }
+  },
+
+  async getActiveQueue(centreId) {
+    try {
+      const url = centreId ? `/queue/active?centreId=${encodeURIComponent(centreId)}` : '/queue/active';
+      const response = await apiClient.get(url);
+      if (response.data?.success) {
+        return response.data.data;
+      }
+      return [];
+    } catch (err) {
+      console.warn('Failed to fetch active queue:', err);
+      return [];
     }
   },
 };
