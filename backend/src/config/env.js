@@ -25,6 +25,7 @@ const config = {
     statusCallbackUrl: process.env.TWILIO_STATUS_CALLBACK_URL || '',
     enabled: process.env.TWILIO_ENABLED === 'true',
     validateSignature: process.env.TWILIO_VALIDATE_SIGNATURE === 'true',
+    verifiedRecipients: process.env.TWILIO_VERIFIED_RECIPIENTS || '+919430063719',
   },
 };
 

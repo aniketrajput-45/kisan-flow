@@ -28,6 +28,24 @@ class SmsService {
   }
 
   /**
+   * Helper to check if a target recipient is on the verified trial allowlist
+   */
+  isRecipientVerified(phone) {
+    const formattedTo = this.normalizePhone(phone);
+    const rawConfig = config.twilio ? config.twilio.verifiedRecipients : null;
+    if (!rawConfig) return true;
+
+    const allowedList = String(rawConfig)
+      .split(',')
+      .map((num) => this.normalizePhone(num.trim()))
+      .filter(Boolean);
+
+    if (allowedList.length === 0) return true;
+
+    return allowedList.includes(formattedTo);
+  }
+
+  /**
    * Central SMS dispatch function handling DB logging, Twilio integration, and idempotency
    */
   async sendSms({
@@ -108,6 +126,31 @@ class SmsService {
 
     // 2. Dispatch via Twilio if enabled
     if (isTwilioEnabled) {
+      if (!this.isRecipientVerified(formattedTo)) {
+        console.log(`[SMS Service] SMS skipped - recipient ${formattedTo} is not verified on the Twilio trial account.`);
+        if (smsRecord && smsRecord.id) {
+          try {
+            await pool.query(
+              `UPDATE sms_verifications
+               SET provider_status = 'skipped', delivery_status = 'SKIPPED_UNVERIFIED'
+               WHERE id = $1`,
+              [smsRecord.id]
+            );
+            smsRecord.provider_status = 'skipped';
+            smsRecord.delivery_status = 'SKIPPED_UNVERIFIED';
+          } catch (uErr) {
+            console.error('[SMS Service DB Error on Twilio Skip Update]', uErr.message);
+          }
+        }
+        return {
+          success: true,
+          provider: 'TWILIO_TRIAL_SKIPPED',
+          messageId: smsRecord ? smsRecord.id : `skipped_${Date.now()}`,
+          status: 'SKIPPED_UNVERIFIED',
+          smsRecord,
+        };
+      }
+
       try {
         console.log(`[SMS Service Outbound - TWILIO] To: ${formattedTo} (${messageType})\nBody:\n${body}`);
         
