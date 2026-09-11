@@ -1,4 +1,5 @@
-// In-memory database store for testing/verification when local Postgres is not running
+const { EventEmitter } = require('events');
+
 class MemoryDb {
   constructor() {
     this.initDefaultUsers();
@@ -6,13 +7,7 @@ class MemoryDb {
       { id: 1, name: 'Burdwan Central Procurement Centre', code: 'BDW-01', district: 'Burdwan', state: 'West Bengal', capacity: 500, is_active: true },
       { id: 2, name: 'Durgapur Sub-Division Procurement Centre', code: 'DGP-01', district: 'Paschim Bardhaman', state: 'West Bengal', capacity: 400, is_active: true },
     ];
-    this.slots = [
-      { id: 1, centre_id: 1, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 50, booked_count: 0 },
-      { id: 2, centre_id: 1, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 1, booked_count: 0 }, // Capacity 1 for concurrency test
-    ];
-    this.bookings = [];
-    this.nextUserId = 4;
-    this.nextBookingId = 100;
+    this.initDefaultSlotsAndBookings();
   }
 
   initDefaultUsers() {
@@ -20,31 +15,167 @@ class MemoryDb {
       { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER', password_hash: 'mock_hash_password123', created_at: new Date() },
       { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER', password_hash: 'mock_hash_password123', created_at: new Date() },
       { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN', password_hash: 'mock_hash_password123', created_at: new Date() },
+      { id: 4, name: 'Harish Patel', phone: '9876543213', role: 'FARMER', password_hash: 'mock_hash_password123', created_at: new Date() },
+      { id: 5, name: 'Gurpreet Singh', phone: '9876543214', role: 'FARMER', password_hash: 'mock_hash_password123', created_at: new Date() },
+      { id: 6, name: 'Mohan Lal', phone: '9876543215', role: 'FARMER', password_hash: 'mock_hash_password123', created_at: new Date() },
     ];
+  }
+
+  initDefaultSlotsAndBookings() {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dates = Array.from(new Set(['2026-09-10', '2026-09-11', todayStr, '2026-09-12', '2026-09-13', '2026-09-14']));
+    const timeSlots = [
+      { start: '09:00:00', end: '11:00:00', capacity: 50 },
+      { start: '11:00:00', end: '13:00:00', capacity: 50 },
+      { start: '14:00:00', end: '16:00:00', capacity: 50 },
+      { start: '16:00:00', end: '18:00:00', capacity: 50 },
+    ];
+
+    this.slots = [];
+    let slotId = 1;
+    for (const d of dates) {
+      for (const t of timeSlots) {
+        this.slots.push({
+          id: slotId++,
+          centre_id: 1,
+          slot_date: d,
+          start_time: t.start,
+          end_time: t.end,
+          capacity: t.capacity,
+          booked_count: 0,
+        });
+      }
+    }
+    for (const d of dates) {
+      for (const t of timeSlots) {
+        this.slots.push({
+          id: slotId++,
+          centre_id: 2,
+          slot_date: d,
+          start_time: t.start,
+          end_time: t.end,
+          capacity: t.capacity,
+          booked_count: 0,
+        });
+      }
+    }
+
+    // Default active demo bookings across slots
+    const todaySlot1 = this.slots.find(s => s.centre_id === 1 && s.slot_date === todayStr && s.start_time.startsWith('09')) || this.slots[0];
+    const todaySlot2 = this.slots.find(s => s.centre_id === 1 && s.slot_date === todayStr && s.start_time.startsWith('11')) || this.slots[2];
+    const todaySlot3 = this.slots.find(s => s.centre_id === 1 && s.slot_date === todayStr && s.start_time.startsWith('14')) || this.slots[4];
+
+    this.bookings = [
+      {
+        id: 101,
+        user_id: 1,
+        centre_id: 1,
+        slot_id: todaySlot1.id,
+        booking_date: todaySlot1.slot_date,
+        token_number: 'BDW-001',
+        qr_code: 'QR_BDW-001_101',
+        crop: 'Wheat',
+        quantity_kg: 2000,
+        status: 'BOOKED',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 102,
+        user_id: 4,
+        centre_id: 1,
+        slot_id: todaySlot1.id,
+        booking_date: todaySlot1.slot_date,
+        token_number: 'BDW-002',
+        qr_code: 'QR_BDW-002_102',
+        crop: 'Mustard',
+        quantity_kg: 1500,
+        status: 'BOOKED',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 103,
+        user_id: 5,
+        centre_id: 1,
+        slot_id: todaySlot2.id,
+        booking_date: todaySlot2.slot_date,
+        token_number: 'BDW-003',
+        crop: 'Paddy',
+        quantity_kg: 3200,
+        qr_code: 'QR_BDW-003_103',
+        status: 'BOOKED',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 104,
+        user_id: 6,
+        centre_id: 1,
+        slot_id: todaySlot3.id,
+        booking_date: todaySlot3.slot_date,
+        token_number: 'BDW-004',
+        crop: 'Gram',
+        quantity_kg: 1800,
+        qr_code: 'QR_BDW-004_104',
+        status: 'BOOKED',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    todaySlot1.booked_count = 2;
+    todaySlot2.booked_count = 1;
+    todaySlot3.booked_count = 1;
+
+    this.nextUserId = 7;
+    this.nextBookingId = 105;
   }
 
   reset() {
     this.initDefaultUsers();
-    this.bookings = [];
-    this.slots[1].booked_count = 0;
-    this.nextUserId = 4;
-    this.nextBookingId = 100;
+    this.initDefaultSlotsAndBookings();
   }
 }
 
 const memoryDb = new MemoryDb();
+
+function createMockClient(pool) {
+  const client = new EventEmitter();
+  client.query = (text, params, cb) => {
+    if (typeof params === 'function') {
+      cb = params;
+      params = [];
+    }
+    const promise = pool.query(text, params);
+    if (typeof cb === 'function') {
+      promise
+        .then((res) => cb(null, res))
+        .catch((err) => cb(err));
+      return;
+    }
+    return promise;
+  };
+  client.release = () => {};
+  return client;
+}
 
 function setupDbFallback(pool) {
   const originalQuery = pool.query.bind(pool);
   const originalConnect = pool.connect.bind(pool);
 
   pool.connect = (cb) => {
+    if (pool._useRealPostgres === false || process.env.USE_MOCK_DB === 'true') {
+      const mockClient = createMockClient(pool);
+      if (typeof cb === 'function') {
+        cb(null, mockClient, () => {});
+        return;
+      }
+      return Promise.resolve(mockClient);
+    }
+
     if (typeof cb === 'function') {
       originalConnect((err, client, release) => {
         if (err) {
           pool._useRealPostgres = false;
           if (err.code === 'ECONNREFUSED' || (err.message && err.message.includes('ECONNREFUSED')) || process.env.USE_MOCK_DB === 'true') {
-            const mockClient = { query: pool.query, release: () => {} };
+            const mockClient = createMockClient(pool);
             return cb(null, mockClient, () => {});
           }
           return cb(err);
@@ -60,7 +191,7 @@ function setupDbFallback(pool) {
         if (err) {
           pool._useRealPostgres = false;
           if (err.code === 'ECONNREFUSED' || (err.message && err.message.includes('ECONNREFUSED')) || process.env.USE_MOCK_DB === 'true') {
-            const mockClient = { query: pool.query, release: () => {} };
+            const mockClient = createMockClient(pool);
             return resolve(mockClient);
           }
           return reject(err);
@@ -99,12 +230,36 @@ function setupDbFallback(pool) {
   }
 
   pool.query = (text, params, cb) => {
-    if (process.env.USE_MOCK_DB !== 'true' && pool._useRealPostgres !== false) {
-      return originalQuery(text, params, cb);
+    if (typeof params === 'function') {
+      cb = params;
+      params = [];
     }
-    return new Promise((resolve, reject) => {
+
+    if (process.env.USE_MOCK_DB !== 'true' && pool._useRealPostgres !== false) {
       try {
-        const queryStr = typeof text === 'string' ? text : text.text;
+        const p = originalQuery(text, params, cb);
+        if (!cb && p && typeof p.catch === 'function') {
+          return p.catch((err) => {
+            if (err.code === 'ECONNREFUSED' || (err.message && err.message.includes('ECONNREFUSED'))) {
+              pool._useRealPostgres = false;
+              return pool.query(text, params);
+            }
+            throw err;
+          });
+        }
+        return p;
+      } catch (err) {
+        if (err.code === 'ECONNREFUSED' || (err.message && err.message.includes('ECONNREFUSED'))) {
+          pool._useRealPostgres = false;
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    const runQuery = new Promise((resolve, reject) => {
+      try {
+        const queryStr = typeof text === 'string' ? text : (text && text.text ? text.text : '');
 
         if (queryStr.includes('SELECT id FROM users WHERE phone = $1')) {
           const phone = params[0];
@@ -289,19 +444,29 @@ function setupDbFallback(pool) {
 
         if (queryStr.includes('FROM bookings b') && queryStr.includes('JOIN users u') && queryStr.includes('JOIN slots s')) {
           const centreParam = params[0];
-          const dateParam = params[1] ? String(params[1]).split('T')[0] : null;
-          const slotParam = params[2];
+          const dateParam = params[1] && String(params[1]) !== 'null' && String(params[1]) !== 'ALL' && String(params[1]).trim() !== ''
+            ? String(params[1]).split('T')[0]
+            : null;
+          const slotParam = params[2] && String(params[2]) !== 'null' && String(params[2]) !== 'ALL' && String(params[2]).trim() !== ''
+            ? String(params[2])
+            : null;
+
           const active = memoryDb.bookings
             .filter(b => {
               const matchesCentre = !centreParam || String(b.centre_id) === String(centreParam);
+              const matchesDate = !dateParam || String(b.booking_date).split('T')[0] === dateParam;
               const matchesSlot = !slotParam || String(b.slot_id) === String(slotParam);
               const isStatusActive = ['BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING'].includes(b.status) && b.status !== 'COMPLETED';
-              return matchesCentre && matchesSlot && isStatusActive;
+              return matchesCentre && matchesDate && matchesSlot && isStatusActive;
             })
             .map(b => {
               const farmer = memoryDb.users.find(u => String(u.id) === String(b.user_id)) || {};
               const centre = memoryDb.centres.find(c => String(c.id) === String(b.centre_id)) || {};
               const slot = memoryDb.slots.find(s => String(s.id) === String(b.slot_id)) || {};
+              const startTime = slot.start_time || '09:00:00';
+              const endTime = slot.end_time || '11:00:00';
+              const slotTimeFormatted = `${String(startTime).substring(0, 5)} - ${String(endTime).substring(0, 5)}`;
+
               return {
                 id: b.id,
                 user_id: b.user_id,
@@ -318,8 +483,9 @@ function setupDbFallback(pool) {
                 farmer_phone: farmer.phone || '9876543210',
                 centre_name: centre.name || 'Burdwan Central Procurement Centre',
                 centre_code: centre.code || 'BDW-01',
-                start_time: slot.start_time || '09:00:00',
-                end_time: slot.end_time || '11:00:00',
+                start_time: startTime,
+                end_time: endTime,
+                slot_time: slotTimeFormatted,
               };
             })
             .sort((a, b) => {
@@ -575,6 +741,12 @@ function setupDbFallback(pool) {
         reject(e);
       }
     });
+
+    if (typeof cb === 'function') {
+      runQuery.then((res) => cb(null, res)).catch((err) => cb(err));
+      return;
+    }
+    return runQuery;
   };
 }
 

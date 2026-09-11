@@ -417,8 +417,10 @@ class QueueService {
    */
   async getActiveQueue(centreId, targetDate, slotId) {
     let dateStr = targetDate;
-    if (!dateStr || typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      dateStr = new Date().toISOString().split('T')[0];
+    if (dateStr === 'ALL' || dateStr === '' || !dateStr) {
+      dateStr = null;
+    } else if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      dateStr = null;
     }
 
     let query = `
@@ -432,13 +434,13 @@ class QueueService {
       JOIN centres c ON b.centre_id = c.id
       JOIN slots s ON b.slot_id = s.id
       WHERE (b.centre_id = $1 OR $1 IS NULL)
-        AND b.booking_date = $2
+        AND ($2::text IS NULL OR b.booking_date::text = $2::text)
         AND b.status IN ('BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING')
         AND b.status != 'COMPLETED'
     `;
 
     const queryParams = [centreId ? parseInt(centreId, 10) : null, dateStr];
-    if (slotId) {
+    if (slotId && slotId !== 'ALL') {
       queryParams.push(parseInt(slotId, 10));
       query += ` AND b.slot_id = $3`;
     }
@@ -457,8 +459,13 @@ class QueueService {
       const peopleAhead = isProcessing ? 0 : index;
       const estWaitMin = peopleAhead * DEMO_AVG_PROCESSING_MINUTES;
 
+      const slotTimeFormatted = (row.start_time && row.end_time)
+        ? `${String(row.start_time).substring(0, 5)} - ${String(row.end_time).substring(0, 5)}`
+        : '09:00 - 11:00';
+
       return {
         ...row,
+        slot_time: slotTimeFormatted,
         queue_position: isProcessing ? 'Serving' : `#${position}`,
         people_ahead: peopleAhead,
         estimated_wait_minutes: estWaitMin,
