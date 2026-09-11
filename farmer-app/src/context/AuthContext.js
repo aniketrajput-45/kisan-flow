@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { loginFarmer, registerFarmer, logoutFarmer } from '../api/auth';
-import { loadStoredToken, setAuthToken } from '../api/client';
+import { loadStoredToken, loadStoredUser, setAuthToken, setAuthUser, setOnUnauthorizedCallback } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -10,12 +10,24 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Restore persisted token from AsyncStorage on app boot
+    // Register global 401 interceptor listener to automatically clear session on 401
+    setOnUnauthorizedCallback(() => {
+      setToken(null);
+      setUser(null);
+    });
+
+    // Restore persisted session from AsyncStorage on app boot
     const restoreSession = async () => {
       try {
-        const storedToken = await loadStoredToken();
+        const [storedToken, storedUser] = await Promise.all([
+          loadStoredToken(),
+          loadStoredUser(),
+        ]);
         if (storedToken) {
           setToken(storedToken);
+          if (storedUser) {
+            setUser(storedUser);
+          }
         }
       } catch (e) {
         console.warn('Session restore error:', e);
@@ -29,10 +41,15 @@ export const AuthProvider = ({ children }) => {
   const login = async (phone, password) => {
     try {
       const res = await loginFarmer({ phone, password });
-      const userData = res.data?.user || res.user || { phone, name: 'Farmer' };
+      const userData = res.data?.user || res.user;
       const jwtToken = res.data?.token || res.token;
 
+      if (!jwtToken || !userData) {
+        throw new Error('Authentication failed: Invalid response from server.');
+      }
+
       await setAuthToken(jwtToken);
+      await setAuthUser(userData);
       setUser(userData);
       setToken(jwtToken);
       return { success: true, user: userData };
@@ -52,6 +69,7 @@ export const AuthProvider = ({ children }) => {
       const jwtToken = res.data?.token || res.token;
 
       await setAuthToken(jwtToken);
+      await setAuthUser(userData);
       setUser(userData);
       setToken(jwtToken);
       return { success: true, user: userData };
@@ -65,6 +83,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     await setAuthToken(null);
+    await setAuthUser(null);
     logoutFarmer();
     setToken(null);
     setUser(null);

@@ -39,6 +39,7 @@ export const PaymentScreen = ({ bookingId, onBack }) => {
       const data = res.data || res;
       setPaymentData(data);
     } catch (err) {
+      if (err?.status === 401) return;
       setError(err);
     } finally {
       setLoading(false);

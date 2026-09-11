@@ -1,16 +1,17 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
-export const Navbar = ({ currentTab, onTabChange }) => {
-  const { user, logout } = useAuth();
+export const Navbar = ({ currentTab, onTabChange, onOpenNotifications, onOpenProfile }) => {
+  const { user } = useAuth();
+  const { lang, setLang, t } = useLanguage();
 
   const tabs = [
-    { id: 'home', label: 'Dashboard', icon: '🏠' },
-    { id: 'booking', label: 'Book Slot', icon: '📅' },
-    { id: 'my-bookings', label: 'My Passes', icon: '🎫' },
-    { id: 'queue', label: 'Live Queue', icon: '⏳' },
-    { id: 'payment', label: 'Payments', icon: '💰' },
+    { id: 'home', label: t('dashboard'), icon: '🏠' },
+    { id: 'my-bookings', label: t('myPasses'), icon: '🎫' },
+    { id: 'queue', label: t('liveQueue'), icon: '⏳' },
+    { id: 'payment', label: t('payments'), icon: '💰' },
   ];
 
   return (
@@ -18,7 +19,12 @@ export const Navbar = ({ currentTab, onTabChange }) => {
       <View style={styles.container}>
         {/* Top Bar */}
         <View style={styles.topBar}>
-          <View style={styles.logoRow}>
+          {/* Logo & Brand */}
+          <TouchableOpacity
+            style={styles.logoRow}
+            onPress={() => onTabChange('home')}
+            activeOpacity={0.85}
+          >
             <View style={styles.logoIcon}>
               <Text style={styles.logoEmoji}>🌾</Text>
             </View>
@@ -26,23 +32,57 @@ export const Navbar = ({ currentTab, onTabChange }) => {
               <Text style={styles.brandTitle}>KisanFlow</Text>
               <Text style={styles.brandSub}>Farmer Portal</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          {/* Topmost Right Area: Farmer Info & Logout Button */}
-          <View style={styles.userRow}>
-            {user && (
-              <View style={styles.userTextCol}>
-                <Text style={styles.userName}>{user.name || 'Farmer'}</Text>
-                <Text style={styles.userPhone}>{user.phone || ''}</Text>
-              </View>
-            )}
-            <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
-              <Text style={styles.logoutBtnText}>🚪 Logout</Text>
+          {/* Controls: Language Selector, Notifications, Profile */}
+          <View style={styles.controlsRow}>
+            {/* Language Selector Pill */}
+            <View style={styles.langPill}>
+              <TouchableOpacity
+                style={[styles.langOption, lang === 'en' && styles.langOptionActive]}
+                onPress={() => setLang('en')}
+              >
+                <Text style={[styles.langText, lang === 'en' && styles.langTextActive]}>EN</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.langOption, lang === 'hi' && styles.langOptionActive]}
+                onPress={() => setLang('hi')}
+              >
+                <Text style={[styles.langText, lang === 'hi' && styles.langTextActive]}>हिं</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.langOption, lang === 'bn' && styles.langOptionActive]}
+                onPress={() => setLang('bn')}
+              >
+                <Text style={[styles.langText, lang === 'bn' && styles.langTextActive]}>বাং</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Notification Bell Icon */}
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={onOpenNotifications}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.btnIcon}>🔔</Text>
+              <View style={styles.badgeDot} />
+            </TouchableOpacity>
+
+            {/* Profile & Help Trigger */}
+            <TouchableOpacity
+              style={styles.profileBtn}
+              onPress={onOpenProfile}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.profileAvatar}>👨‍🌾</Text>
+              <Text style={styles.profileName} numberOfLines={1}>
+                {user?.name?.split(' ')[0] || 'Farmer'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Tab Navigation */}
+        {/* Navigation Tabs Bar */}
         <View style={styles.tabBar}>
           {tabs.map((tab) => {
             const isActive = currentTab === tab.id;
@@ -77,22 +117,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#064e3b',
   },
   topBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.12)',
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   logoIcon: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: 10,
     backgroundColor: '#10b981',
     alignItems: 'center',
@@ -102,49 +142,89 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   brandTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '900',
     color: '#ffffff',
+    letterSpacing: 0.5,
   },
   brandSub: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#a7f3d0',
+    fontWeight: '600',
   },
-  userRow: {
+  controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  userTextCol: {
-    alignItems: 'flex-end',
+  langPill: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 14,
+    padding: 2,
   },
-  userName: {
-    fontSize: 13,
+  langOption: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  langOptionActive: {
+    backgroundColor: '#10b981',
+  },
+  langText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#ecfdf5',
+    color: '#d1fae5',
   },
-  userPhone: {
-    fontSize: 11,
-    color: '#6ee7b7',
-  },
-  logoutBtn: {
-    backgroundColor: '#dc2626',
-    borderColor: '#ef4444',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    elevation: 2,
-  },
-  logoutBtnText: {
+  langTextActive: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '800',
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  btnIcon: {
+    fontSize: 14,
+  },
+  badgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    borderWidth: 1,
+    borderColor: '#064e3b',
+  },
+  profileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 14,
+    gap: 4,
+  },
+  profileAvatar: {
+    fontSize: 14,
+  },
+  profileName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#ffffff',
+    maxWidth: 65,
   },
   tabBar: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 4,
+    backgroundColor: '#064e3b',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   tabItem: {
     flex: 1,
@@ -157,17 +237,17 @@ const styles = StyleSheet.create({
     borderBottomColor: '#34d399',
   },
   tabIcon: {
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 2,
   },
   tabLabel: {
     fontSize: 11,
-    color: '#9ca3af',
+    color: '#a7f3d0',
     fontWeight: '500',
   },
   tabLabelActive: {
     color: '#ffffff',
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });
 
