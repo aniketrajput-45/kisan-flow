@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://10.237.111.4:5000/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -102,6 +102,18 @@ export const officerService = {
       throw new Error(response.data?.error || 'Procurement recording failed');
     } catch (err) {
       throw extractErrorMessage(err, 'Failed to record procurement');
+    }
+  },
+
+  async getLiveQueue(centreId = 1) {
+    try {
+      const response = await apiClient.get(`/queue?centreId=${centreId}`);
+      if (response.data?.success) {
+        return response.data.data;
+      }
+      throw new Error(response.data?.error || 'Failed to fetch live queue');
+    } catch (err) {
+      throw extractErrorMessage(err, 'Failed to fetch live queue');
     }
   },
 };

@@ -12,6 +12,22 @@ const lookupBooking = async (req, res, next) => {
     next(err);
   }
 };
+const queueService = require('../services/queueService');
+
+const getLiveQueue = async (req, res, next) => {
+  try {
+    // In production, validate against req.user assigned centre
+    const centreId = req.query.centreId || 1; 
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const data = await queueService.getLiveQueue(centreId, date);
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 const recordProcurement = async (req, res, next) => {
   try {
@@ -59,6 +75,7 @@ const updatePaymentStatus = async (req, res, next) => {
 
 module.exports = {
   lookupBooking,
+  getLiveQueue,
   recordProcurement,
   getPaymentByBooking,
   updatePaymentStatus,

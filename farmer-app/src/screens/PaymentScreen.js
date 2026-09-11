@@ -18,7 +18,7 @@ const STAGES = [
   { id: 'CREDITED', label: 'Directly Credited', desc: 'Funds deposited in farmer bank account' },
 ];
 
-export const PaymentScreen = ({ bookingId, onBack }) => {
+export const PaymentScreen = ({ bookingId, onBack, onBookSlot }) => {
   const [paymentData, setPaymentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,6 +39,19 @@ export const PaymentScreen = ({ bookingId, onBack }) => {
       const data = res.data || res;
       setPaymentData(data);
     } catch (err) {
+      if (err?.status === 401) return;
+      if (err?.status === 403) {
+        setPaymentData(null);
+        setError({
+          status: 403,
+          message: 'This booking pass belongs to a different farmer session. Please select your own active booking pass from Dashboard or My Passes.',
+        });
+        return;
+      }
+      if (err?.status === 404) {
+        setPaymentData({ pending: true });
+        return;
+      }
       setError(err);
     } finally {
       setLoading(false);

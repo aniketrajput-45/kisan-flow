@@ -1,25 +1,46 @@
 // In-memory database store for testing/verification when local Postgres is not running
 class MemoryDb {
   constructor() {
-    this.users = [];
+    const bcrypt = require('bcryptjs');
+    const demoHash = bcrypt.hashSync('password123', 10);
+
+    this.users = [
+      { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER', password_hash: demoHash },
+      { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER', password_hash: demoHash },
+      { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN', password_hash: demoHash },
+      { id: 4, name: 'Anku', phone: '9430063719', role: 'FARMER', password_hash: demoHash },
+    ];
     this.centres = [
       { id: 1, name: 'Burdwan Central Procurement Centre', code: 'BDW-01', district: 'Burdwan', state: 'West Bengal', capacity: 500, is_active: true },
       { id: 2, name: 'Durgapur Sub-Division Procurement Centre', code: 'DGP-01', district: 'Paschim Bardhaman', state: 'West Bengal', capacity: 400, is_active: true },
     ];
     this.slots = [
-      { id: 1, centre_id: 1, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 50, booked_count: 0 },
-      { id: 2, centre_id: 1, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 1, booked_count: 0 }, // Capacity 1 for concurrency test
+      { id: 1, centre_id: 1, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 8, booked_count: 0 },
+      { id: 2, centre_id: 1, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 8, booked_count: 0 },
+      { id: 3, centre_id: 1, slot_date: '2026-09-10', start_time: '14:00:00', end_time: '16:00:00', capacity: 8, booked_count: 0 },
+      { id: 4, centre_id: 2, slot_date: '2026-09-10', start_time: '09:00:00', end_time: '11:00:00', capacity: 8, booked_count: 0 },
+      { id: 5, centre_id: 2, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 8, booked_count: 0 },
+      { id: 6, centre_id: 2, slot_date: '2026-09-10', start_time: '14:00:00', end_time: '16:00:00', capacity: 8, booked_count: 0 },
     ];
     this.bookings = [];
-    this.nextUserId = 1;
+    this.nextUserId = 5;
     this.nextBookingId = 100;
   }
 
   reset() {
-    this.users = [];
+    const bcrypt = require('bcryptjs');
+    const demoHash = bcrypt.hashSync('password123', 10);
+    this.users = [
+      { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER', password_hash: demoHash },
+      { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER', password_hash: demoHash },
+      { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN', password_hash: demoHash },
+      { id: 4, name: 'Anku', phone: '9430063719', role: 'FARMER', password_hash: demoHash },
+    ];
     this.bookings = [];
-    this.slots[1].booked_count = 0;
-    this.nextUserId = 1;
+    if (this.slots) {
+      this.slots.forEach(s => s.booked_count = 0);
+    }
+    this.nextUserId = 5;
     this.nextBookingId = 100;
   }
 }
@@ -41,30 +62,30 @@ function setupDbFallback(pool) {
       if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED') || process.env.USE_MOCK_DB === 'true') {
         return {
           query: pool.query,
-          release: () => {},
+          release: () => { },
         };
       }
       throw err;
     }
   };
 
-async function seedDefaultUsers(pool) {
-  try {
-    const existing = await pool.query('SELECT id FROM users WHERE phone = $1', ['9876543210']);
-    if (existing.rows.length === 0) {
-      const bcrypt = require('bcryptjs');
-      const hash = await bcrypt.hash('password123', 10);
-      await pool.query(
-        `INSERT INTO users (name, phone, role, password_hash)
+  async function seedDefaultUsers(pool) {
+    try {
+      const existing = await pool.query('SELECT id FROM users WHERE phone = $1', ['9876543210']);
+      if (existing.rows.length === 0) {
+        const bcrypt = require('bcryptjs');
+        const hash = await bcrypt.hash('password123', 10);
+        await pool.query(
+          `INSERT INTO users (name, phone, role, password_hash)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (phone) DO NOTHING`,
-        ['Ramesh Kumar', '9876543210', 'FARMER', hash]
-      );
+          ['Ramesh Kumar', '9876543210', 'FARMER', hash]
+        );
+      }
+    } catch (e) {
+      // Non-fatal
     }
-  } catch (e) {
-    // Non-fatal
   }
-}
 
   pool.query = (text, params) => {
     if (pool._useRealPostgres) {
@@ -73,6 +94,12 @@ async function seedDefaultUsers(pool) {
     return new Promise((resolve, reject) => {
       try {
         const queryStr = typeof text === 'string' ? text : text.text;
+
+        if (queryStr.includes('SELECT id FROM users WHERE id = $1')) {
+          const userId = params[0];
+          const existing = memoryDb.users.filter(u => String(u.id) === String(userId));
+          return resolve({ rows: existing });
+        }
 
         if (queryStr.includes('SELECT id FROM users WHERE phone = $1')) {
           const phone = params[0];
@@ -107,7 +134,7 @@ async function seedDefaultUsers(pool) {
         if (queryStr.includes('WHERE centre_id = $1 AND slot_date = $2')) {
           const centreId = params[0];
           const date = params[1] ? String(params[1]).split('T')[0] : new Date().toISOString().split('T')[0];
-          
+
           let filtered = memoryDb.slots.filter(
             s => String(s.centre_id) === String(centreId) && String(s.slot_date).split('T')[0] === date
           );
@@ -179,7 +206,7 @@ async function seedDefaultUsers(pool) {
 
         if (queryStr.includes('SELECT id FROM bookings') && queryStr.includes('WHERE user_id = $1 AND slot_id = $2')) {
           const [userId, slotId] = params;
-          const active = memoryDb.bookings.filter(b => String(b.user_id) === String(userId) && String(b.slot_id) === String(slotId) && ['BOOKED','ARRIVED','IN_QUEUE','PROCESSING'].includes(b.status));
+          const active = memoryDb.bookings.filter(b => String(b.user_id) === String(userId) && String(b.slot_id) === String(slotId) && ['BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING'].includes(b.status));
           return resolve({ rows: active });
         }
 
@@ -259,10 +286,27 @@ async function seedDefaultUsers(pool) {
           return resolve({ rows: userBookings });
         }
 
-        if (queryStr.includes('FROM bookings b') && queryStr.includes('WHERE b.qr_code = $1 OR b.token_number = $1 OR u.phone = $1')) {
+        if (queryStr.includes('FROM bookings b') && (queryStr.includes('WHERE b.qr_code = $1 OR b.token_number = $1 OR u.phone = $1') || queryStr.includes('WHERE b.qr_code = $1 OR b.token_number = $1'))) {
           const [criteria] = params;
-          const booking = memoryDb.bookings.find(b => b.qr_code === criteria || b.token_number === criteria);
-          if (!booking) return resolve({ rows: [] });
+          const matching = memoryDb.bookings.filter(b => {
+            const farmer = memoryDb.users.find(u => u.id === b.user_id);
+            return b.qr_code === criteria || b.token_number === criteria || (farmer && farmer.phone === criteria);
+          });
+          if (matching.length === 0) return resolve({ rows: [] });
+
+          // Sort by active status priority first, then newest created_at / id
+          matching.sort((a, b) => {
+            const activeStates = ['BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING'];
+            const aActive = activeStates.includes(a.status) ? 0 : 1;
+            const bActive = activeStates.includes(b.status) ? 0 : 1;
+            if (aActive !== bActive) return aActive - bActive;
+            const aTime = new Date(a.created_at || 0).getTime();
+            const bTime = new Date(b.created_at || 0).getTime();
+            if (bTime !== aTime) return bTime - aTime;
+            return (b.id || 0) - (a.id || 0);
+          });
+
+          const booking = matching[0];
           const farmer = memoryDb.users.find(u => u.id === booking.user_id) || {};
           const centre = memoryDb.centres.find(c => c.id === booking.centre_id) || {};
           const slot = memoryDb.slots.find(s => s.id === booking.slot_id) || {};
@@ -362,7 +406,7 @@ async function seedDefaultUsers(pool) {
           return resolve({ rows: [] });
         }
 
-        if (queryStr.includes('FROM payments') && (queryStr.includes('WHERE id = $1') || queryStr.includes('WHERE booking_id = $1') || queryStr.includes('WHERE pm.id = $1'))) {
+        if (queryStr.includes('FROM payments')) {
           const [id] = params;
           if (!memoryDb.payments) memoryDb.payments = [];
           const payment = memoryDb.payments.find(p => String(p.booking_id) === String(id) || String(p.id) === String(id));
