@@ -9,17 +9,10 @@ class FarmerService {
        WHERE is_active = true
        ORDER BY name ASC`
     );
-    if (!result.rows || result.rows.length === 0) {
-      return [
-        { id: 1, name: 'Burdwan Central Procurement Centre', code: 'BDW-01', district: 'Burdwan', state: 'West Bengal', capacity: 500 },
-        { id: 2, name: 'Durgapur Sub-Division Procurement Centre', code: 'DGP-01', district: 'Paschim Bardhaman', state: 'West Bengal', capacity: 400 },
-        { id: 3, name: 'Asansol Regional Procurement Centre', code: 'ASN-01', district: 'Paschim Bardhaman', state: 'West Bengal', capacity: 450 }
-      ];
-    }
     return result.rows;
   }
 
-  async getSlots(centreId, date, userId = null) {
+  async getSlots(centreId, date) {
     if (!centreId || !date) {
       const err = new Error('centreId and date query parameters are required');
       err.statusCode = 400;
@@ -27,21 +20,14 @@ class FarmerService {
     }
 
     const cleanDate = String(date).split('T')[0];
-    const parsedUserId = userId ? parseInt(userId, 10) : null;
 
     let result = await pool.query(
       `SELECT id, centre_id, slot_date::text AS slot_date, start_time, end_time, capacity, booked_count,
-              (capacity - booked_count) AS available_count,
-              EXISTS (
-                SELECT 1 FROM bookings b
-                WHERE b.slot_id = slots.id
-                  AND ($3::int IS NOT NULL AND b.user_id = $3::int)
-                  AND b.status IN ('BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING')
-              ) AS is_already_booked
+              (capacity - booked_count) AS available_count
        FROM slots
        WHERE centre_id = $1 AND slot_date = $2
        ORDER BY start_time ASC`,
-      [centreId, cleanDate, parsedUserId]
+      [centreId, cleanDate]
     );
 
     if (result.rows.length === 0) {
@@ -57,17 +43,11 @@ class FarmerService {
         );
         result = await pool.query(
           `SELECT id, centre_id, slot_date::text AS slot_date, start_time, end_time, capacity, booked_count,
-                  (capacity - booked_count) AS available_count,
-                  EXISTS (
-                    SELECT 1 FROM bookings b
-                    WHERE b.slot_id = slots.id
-                      AND ($3::int IS NOT NULL AND b.user_id = $3::int)
-                      AND b.status IN ('BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING')
-                  ) AS is_already_booked
+                  (capacity - booked_count) AS available_count
            FROM slots
            WHERE centre_id = $1 AND slot_date = $2
            ORDER BY start_time ASC`,
-          [centreId, cleanDate, parsedUserId]
+          [centreId, cleanDate]
         );
       } catch (e) {
         // Non-fatal if concurrency collision
@@ -94,14 +74,6 @@ class FarmerService {
 
     try {
       await client.query('BEGIN');
-
-      // 0. Validate user existence in database
-      const userCheck = await client.query('SELECT id FROM users WHERE id = $1', [userId]);
-      if (userCheck.rows.length === 0) {
-        const err = new Error('User session invalid or user account no longer exists. Please log in again.');
-        err.statusCode = 401;
-        throw err;
-      }
 
       // 1. SELECT slot FOR UPDATE to lock the row and prevent race conditions
       const slotRes = await client.query(

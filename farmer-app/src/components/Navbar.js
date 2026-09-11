@@ -1,17 +1,16 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { useLanguage } from '../context/LanguageContext';
 
-export const Navbar = ({ currentTab, onTabChange, onOpenNotifications, onOpenProfile }) => {
-  const { user } = useAuth();
-  const { lang, setLang, t } = useLanguage();
+export const Navbar = ({ currentTab, onTabChange }) => {
+  const { user, logout } = useAuth();
 
   const tabs = [
-    { id: 'home', label: t('dashboard'), icon: '🏠' },
-    { id: 'my-bookings', label: t('myPasses'), icon: '🎫' },
-    { id: 'queue', label: t('liveQueue'), icon: '⏳' },
-    { id: 'payment', label: t('payments'), icon: '💰' },
+    { id: 'home', label: 'Dashboard', icon: '🏠' },
+    { id: 'booking', label: 'Book Slot', icon: '📅' },
+    { id: 'my-bookings', label: 'My Passes', icon: '🎫' },
+    { id: 'queue', label: 'Live Queue', icon: '⏳' },
+    { id: 'payment', label: 'Payments', icon: '💰' },
   ];
 
   return (
@@ -19,12 +18,7 @@ export const Navbar = ({ currentTab, onTabChange, onOpenNotifications, onOpenPro
       <View style={styles.container}>
         {/* Top Bar */}
         <View style={styles.topBar}>
-          {/* Logo & Brand */}
-          <TouchableOpacity
-            style={styles.logoRow}
-            onPress={() => onTabChange('home')}
-            activeOpacity={0.85}
-          >
+          <View style={styles.logoRow}>
             <View style={styles.logoIcon}>
               <Text style={styles.logoEmoji}>🌾</Text>
             </View>
@@ -32,57 +26,23 @@ export const Navbar = ({ currentTab, onTabChange, onOpenNotifications, onOpenPro
               <Text style={styles.brandTitle}>KisanFlow</Text>
               <Text style={styles.brandSub}>Farmer Portal</Text>
             </View>
-          </TouchableOpacity>
+          </View>
 
-          {/* Controls: Language Selector, Notifications, Profile */}
-          <View style={styles.controlsRow}>
-            {/* Language Selector Pill */}
-            <View style={styles.langPill}>
-              <TouchableOpacity
-                style={[styles.langOption, lang === 'en' && styles.langOptionActive]}
-                onPress={() => setLang('en')}
-              >
-                <Text style={[styles.langText, lang === 'en' && styles.langTextActive]}>EN</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.langOption, lang === 'hi' && styles.langOptionActive]}
-                onPress={() => setLang('hi')}
-              >
-                <Text style={[styles.langText, lang === 'hi' && styles.langTextActive]}>हिं</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.langOption, lang === 'bn' && styles.langOptionActive]}
-                onPress={() => setLang('bn')}
-              >
-                <Text style={[styles.langText, lang === 'bn' && styles.langTextActive]}>বাং</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Notification Bell Icon */}
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={onOpenNotifications}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.btnIcon}>🔔</Text>
-              <View style={styles.badgeDot} />
-            </TouchableOpacity>
-
-            {/* Profile & Help Trigger */}
-            <TouchableOpacity
-              style={styles.profileBtn}
-              onPress={onOpenProfile}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.profileAvatar}>👨‍🌾</Text>
-              <Text style={styles.profileName} numberOfLines={1}>
-                {user?.name?.split(' ')[0] || 'Farmer'}
-              </Text>
+          {/* Topmost Right Area: Farmer Info & Logout Button */}
+          <View style={styles.userRow}>
+            {user && (
+              <View style={styles.userTextCol}>
+                <Text style={styles.userName}>{user.name || 'Farmer'}</Text>
+                <Text style={styles.userPhone}>{user.phone || ''}</Text>
+              </View>
+            )}
+            <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
+              <Text style={styles.logoutBtnText}>🚪 Logout</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Navigation Tabs Bar */}
+        {/* Tab Navigation */}
         <View style={styles.tabBar}>
           {tabs.map((tab) => {
             const isActive = currentTab === tab.id;
@@ -117,22 +77,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#064e3b',
   },
   topBar: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.12)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   logoIcon: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     backgroundColor: '#10b981',
     alignItems: 'center',
@@ -142,89 +102,49 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   brandTitle: {
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: 0.5,
   },
   brandSub: {
-    fontSize: 10,
-    color: '#a7f3d0',
-    fontWeight: '600',
-  },
-  controlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  langPill: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 14,
-    padding: 2,
-  },
-  langOption: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  langOptionActive: {
-    backgroundColor: '#10b981',
-  },
-  langText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#d1fae5',
-  },
-  langTextActive: {
-    color: '#ffffff',
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  btnIcon: {
-    fontSize: 14,
-  },
-  badgeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ef4444',
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    borderWidth: 1,
-    borderColor: '#064e3b',
-  },
-  profileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 14,
-    gap: 4,
-  },
-  profileAvatar: {
-    fontSize: 14,
-  },
-  profileName: {
     fontSize: 11,
+    color: '#a7f3d0',
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  userTextCol: {
+    alignItems: 'flex-end',
+  },
+  userName: {
+    fontSize: 13,
     fontWeight: '700',
+    color: '#ecfdf5',
+  },
+  userPhone: {
+    fontSize: 11,
+    color: '#6ee7b7',
+  },
+  logoutBtn: {
+    backgroundColor: '#dc2626',
+    borderColor: '#ef4444',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    elevation: 2,
+  },
+  logoutBtnText: {
     color: '#ffffff',
-    maxWidth: 65,
+    fontSize: 12,
+    fontWeight: '800',
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#064e3b',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'space-around',
+    paddingVertical: 4,
   },
   tabItem: {
     flex: 1,
@@ -237,17 +157,17 @@ const styles = StyleSheet.create({
     borderBottomColor: '#34d399',
   },
   tabIcon: {
-    fontSize: 15,
+    fontSize: 16,
     marginBottom: 2,
   },
   tabLabel: {
     fontSize: 11,
-    color: '#a7f3d0',
+    color: '#9ca3af',
     fontWeight: '500',
   },
   tabLabelActive: {
     color: '#ffffff',
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });
 

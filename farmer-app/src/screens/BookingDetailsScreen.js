@@ -10,7 +10,6 @@ import {
 import QRCodeCard from '../components/QRCodeCard';
 import StatusBadge from '../components/StatusBadge';
 import ErrorAlert from '../components/ErrorAlert';
-import BookingTimeline from '../components/BookingTimeline';
 import { markArrival } from '../api/queue';
 
 export const BookingDetailsScreen = ({ booking, onGoToQueue, onGoToPayment, onBack }) => {
@@ -45,9 +44,6 @@ export const BookingDetailsScreen = ({ booking, onGoToQueue, onGoToPayment, onBa
     }
   };
 
-  const isCompleted = currentBooking.status === 'COMPLETED' || currentBooking.status === 'PAID';
-  const isProcessing = currentBooking.status === 'PROCESSING' || isCompleted;
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Top Header */}
@@ -62,7 +58,7 @@ export const BookingDetailsScreen = ({ booking, onGoToQueue, onGoToPayment, onBa
 
       {/* Backend Token & QR Pass Display Card */}
       <QRCodeCard
-        tokenNumber={currentBooking.token_number || currentBooking.token || `TK-${currentBooking.id}`}
+        tokenNumber={currentBooking.token_number || currentBooking.token}
         qrCode={currentBooking.qr_code || currentBooking.qrToken}
         crop={currentBooking.crop}
         quantityKg={currentBooking.quantity_kg || currentBooking.declared_quantity_kg}
@@ -75,46 +71,6 @@ export const BookingDetailsScreen = ({ booking, onGoToQueue, onGoToPayment, onBa
         }
         bookingDate={currentBooking.booking_date || currentBooking.created_at?.split('T')[0]}
       />
-
-      {/* Visual Booking Timeline */}
-      <BookingTimeline currentStatus={currentBooking.status} />
-
-      {/* Procurement Completion Record Box */}
-      {isProcessing && (
-        <View style={styles.procurementCard}>
-          <View style={styles.procurementHeader}>
-            <Text style={styles.procurementTitle}>⚖️ Official Procurement Inspection Record</Text>
-            <View style={styles.procurementBadge}>
-              <Text style={styles.procurementBadgeText}>
-                {isCompleted ? '✓ Completed' : '⏳ In Progress'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.procurementGrid}>
-            <View style={styles.pItem}>
-              <Text style={styles.pLabel}>Declared Weight</Text>
-              <Text style={styles.pValue}>{currentBooking.quantity_kg} KG</Text>
-            </View>
-            <View style={styles.pItem}>
-              <Text style={styles.pLabel}>Actual Weighed</Text>
-              <Text style={[styles.pValue, { color: '#047857' }]}>
-                {currentBooking.actual_quantity_kg || currentBooking.quantity_kg} KG
-              </Text>
-            </View>
-            <View style={styles.pItem}>
-              <Text style={styles.pLabel}>Quality Grade</Text>
-              <Text style={styles.pValue}>{currentBooking.quality_grade || 'Grade A (FAQ)'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.mandiFooter}>
-            <Text style={styles.mandiFooterText}>
-              🏛 Verified by Mandi Inspector • APMC Gate Verified Pass
-            </Text>
-          </View>
-        </View>
-      )}
 
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
@@ -159,9 +115,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    maxWidth: 650,
-    alignSelf: 'center',
-    width: '100%',
   },
   emptyContainer: {
     flex: 1,
@@ -204,76 +157,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#334155',
   },
-  procurementCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginVertical: 12,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  procurementHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  procurementTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#065f46',
-  },
-  procurementBadge: {
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  procurementBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  procurementGrid: {
-    flexDirection: 'row',
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    padding: 12,
-    gap: 10,
-  },
-  pItem: {
-    flex: 1,
-  },
-  pLabel: {
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  pValue: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  mandiFooter: {
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-  },
-  mandiFooterText: {
-    fontSize: 11,
-    color: '#64748b',
-    textAlign: 'center',
-  },
   actionButtons: {
     gap: 10,
-    marginTop: 12,
+    marginTop: 20,
     marginBottom: 20,
   },
   arrivalButton: {
