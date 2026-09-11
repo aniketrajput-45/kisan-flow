@@ -115,42 +115,53 @@ async function runVerification() {
         console.error('❌ FAILURE: Tokens are not strictly monotonically increasing!', token1Seq, token2Seq, token3Seq, token4Seq, token5Seq);
       }
 
-      console.log('\n--- 2. Testing Officer Direct "Start Processing" on BOOKED status (No Mark Arrived needed) ---');
-      const bkgId = res1.body.data?.id;
-      const startRes = await postJson(`${baseUrl}/api/queue/${bkgId}/start`, {}, officer);
-      console.log('Start Processing Status:', startRes.status);
-      console.log('New Status:', startRes.body.data?.status);
-      console.log('Active Processing Token:', startRes.body.data?.currently_processing);
-
-      if (startRes.status === 200 && startRes.body.data?.status === 'PROCESSING') {
-        console.log('✅ SUCCESS: Officer can start processing directly from BOOKED status without needing Mark Arrived!');
+      console.log('\n--- 2. Testing Arrival Requirement: Unarrived BOOKED farmers do NOT appear in Live Queue ---');
+      const bkg2Id = res2.body.data?.id;
+      const initialQueueRes = await getJson(`${baseUrl}/api/queue/active?centreId=1`, officer);
+      const isBkg2InQueueBefore = initialQueueRes.body.data?.some(item => item.id === bkg2Id);
+      console.log('Is unarrived Booking 2 in live queue before marking arrived?:', isBkg2InQueueBefore);
+      if (!isBkg2InQueueBefore) {
+        console.log('✅ SUCCESS: Farmer who just booked does NOT enter live queue before marking arrival!');
       } else {
-        console.error('❌ FAILURE: Start processing failed on BOOKED status!');
+        console.error('❌ FAILURE: Farmer in BOOKED status appeared in live queue before arrival!');
       }
 
-      console.log('\n--- 3. Testing Active Queue with Slot Breakdown & Completed Exclusion ---');
-      const queueRes = await getJson(`${baseUrl}/api/queue/active?centreId=1`, officer);
-      console.log('Active Queue Count:', queueRes.body.data?.length);
-      console.log('Queue items summary:');
-      queueRes.body.data?.forEach((item) => {
-        console.log(`- Token: ${item.token_number} | Slot: ${item.start_time} - ${item.end_time} | Status: ${item.status}`);
-      });
+      console.log('\n--- 3. Testing Mark Arrival Transition: Farmer Enters Live Queue Upon Arrival ---');
+      const arriveRes = await postJson(`${baseUrl}/api/queue/arrive`, { booking_id: bkg2Id }, farmer2);
+      console.log('Mark Arrive Status:', arriveRes.status, 'New Status:', arriveRes.body.data?.status);
+      const queueAfterArrival = await getJson(`${baseUrl}/api/queue/active?centreId=1`, officer);
+      const isBkg2InQueueAfter = queueAfterArrival.body.data?.some(item => item.id === bkg2Id && item.status === 'IN_QUEUE');
+      console.log('Is Booking 2 in live queue after marking arrived?:', isBkg2InQueueAfter);
+      if (isBkg2InQueueAfter) {
+        console.log('✅ SUCCESS: Farmer immediately appears in live queue upon marking arrival!');
+      } else {
+        console.error('❌ FAILURE: Farmer failed to appear in live queue after marking arrival!');
+      }
 
-      console.log('\n--- 4. Testing Procurement Completion and Immediate Removal from Queue ---');
+      console.log('\n--- 4. Testing Officer Start Processing & Procurement Completion Flow ---');
+      const bkgId = res1.body.data?.id;
+      const startRes = await postJson(`${baseUrl}/api/queue/${bkgId}/start`, {}, officer);
+      console.log('Start Processing Status:', startRes.status, 'Active Processing Token:', startRes.body.data?.currently_processing);
+
+      if (startRes.status === 200 && startRes.body.data?.status === 'PROCESSING') {
+        console.log('✅ SUCCESS: Officer started processing booking!');
+      } else {
+        console.error('❌ FAILURE: Start processing failed!');
+      }
+
       const procRes = await postJson(`${baseUrl}/api/procurements`, {
         booking_id: bkgId,
         weight_kg: 2000,
         grade: 'Grade A',
       }, officer);
-      console.log('Procurement Recorded:', procRes.status);
+      console.log('Procurement Recorded Status:', procRes.status);
 
       const queueAfterProc = await getJson(`${baseUrl}/api/queue/active?centreId=1`, officer);
       const isCompletedInQueue = queueAfterProc.body.data?.some((item) => item.id === bkgId || item.status === 'COMPLETED');
-      console.log('Active Queue Count After Procurement:', queueAfterProc.body.data?.length);
       console.log('Is Completed Farmer Still in Queue?:', isCompletedInQueue);
 
       if (!isCompletedInQueue) {
-        console.log('✅ SUCCESS: Completed/processed farmer is immediately removed from the queue and will NOT appear on screen!');
+        console.log('✅ SUCCESS: Completed/processed farmer is immediately removed from the queue!');
       } else {
         console.error('❌ FAILURE: Completed farmer is still present in active queue!');
       }

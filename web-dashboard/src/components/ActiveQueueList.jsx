@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, onSelectBooking, onRefresh }) => {
   const { t } = useLanguage();
   const [selectedSlot, setSelectedSlot] = useState('ALL');
+  const [viewMode, setViewMode] = useState('ARRIVED'); // 'ARRIVED' (default: only marked arrived) | 'ALL' (all booked)
   const selectedId = selectedBooking?.id || selectedBooking?.booking_id;
 
   const formatSlotTime = (startTimeOrItem, maybeEndTime) => {
@@ -21,9 +22,24 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
   };
 
   // Strictly filter out any completed bookings so processed farmers disappear from screen
-  const activeQueue = useMemo(() => {
+  const uncompletedList = useMemo(() => {
     return (queue || []).filter((item) => item.status !== 'COMPLETED');
   }, [queue]);
+
+  const arrivedCount = useMemo(() => {
+    return uncompletedList.filter((item) => item.status !== 'BOOKED').length;
+  }, [uncompletedList]);
+
+  const totalBookedCount = uncompletedList.length;
+
+  // Active queue according to viewMode (default strictly arrived farmers)
+  const activeQueue = useMemo(() => {
+    if (viewMode === 'ALL') {
+      return uncompletedList;
+    }
+    // Default: only farmers who have marked arrived at the mandi gate
+    return uncompletedList.filter((item) => item.status !== 'BOOKED');
+  }, [uncompletedList, viewMode]);
 
   // Compute live count of farmers per slot
   const slotStats = useMemo(() => {
@@ -63,11 +79,11 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
             </h2>
             <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded border border-emerald-300 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              {activeQueue.length} {t.liveQueue?.currentlyWaiting || 'Active in Queue'}
+              {arrivedCount} Arrived at Gate
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Live queue of farmers booked for today across procurement slots. Processed farmers are automatically removed.
+            Only farmers who have marked arrival at the mandi gate appear in the live queue. Booked farmers enter the queue upon check-in.
           </p>
         </div>
 
@@ -85,11 +101,63 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
         </div>
       </div>
 
+      {/* Mode Toggle: Arrived at Gate vs All Bookings */}
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setViewMode('ARRIVED')}
+            className={`px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              viewMode === 'ARRIVED'
+                ? 'bg-[#1E3A8A] text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Arrived at Gate (गेट पर उपस्थित)</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                viewMode === 'ARRIVED' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {arrivedCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewMode('ALL')}
+            className={`px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              viewMode === 'ALL'
+                ? 'bg-[#1E3A8A] text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-blue-400" />
+            <span>All Booked Slots (कुल बुकिंग)</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                viewMode === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {totalBookedCount}
+            </span>
+          </button>
+        </div>
+
+        {viewMode === 'ARRIVED' && (
+          <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            Showing only checked-in / arrived farmers
+          </span>
+        )}
+      </div>
+
       {/* Slot Breakdown Pills / Filter Bar */}
-      <div className="mt-4 pt-1 pb-3 border-b border-slate-100">
+      <div className="mt-3 pt-1 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-2">
           <Filter className="w-3.5 h-3.5 text-[#1E3A8A]" />
-          <span>Filter by Slot (स्लॉट अनुसार किसान देखें):</span>
+          <span>Filter by Slot ({viewMode === 'ARRIVED' ? 'उपस्थित किसान' : 'सभी बुक किसान'}):</span>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -160,13 +228,17 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
           </div>
           <h3 className="text-sm font-bold text-slate-800">
             {selectedSlot === 'ALL'
-              ? 'No farmers are currently waiting in the queue.'
-              : `No farmers currently waiting in Slot (${selectedSlot}).`}
+              ? viewMode === 'ARRIVED'
+                ? 'No farmers have marked arrival at the gate yet.'
+                : 'No bookings found for this day.'
+              : viewMode === 'ARRIVED'
+              ? `No farmers currently arrived for Slot (${selectedSlot}).`
+              : `No bookings found for Slot (${selectedSlot}).`}
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-            {selectedSlot === 'ALL'
-              ? 'When a farmer books or arrives, their token will automatically appear here. As weighment completes, they are automatically removed.'
-              : 'Switch to "All Slots" or select another slot above to view active farmers.'}
+            {viewMode === 'ARRIVED'
+              ? 'When a booked farmer marks arrival at the centre gate (via farmer app or gate QR), their token will instantly appear in this live queue.'
+              : 'Switch to "Arrived at Gate" to view farmers who are physically present in the queue.'}
           </p>
         </div>
       ) : (

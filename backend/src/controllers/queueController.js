@@ -58,7 +58,8 @@ const getActiveQueue = async (req, res, next) => {
     const centreId = req.query.centreId || req.params.centreId;
     const date = req.query.date;
     const slotId = req.query.slotId || req.query.slot_id;
-    const data = await queueService.getActiveQueue(centreId, date, slotId);
+    const status = req.query.status;
+    const data = await queueService.getActiveQueue(centreId, date, slotId, status);
     res.status(200).json({
       success: true,
       data,
