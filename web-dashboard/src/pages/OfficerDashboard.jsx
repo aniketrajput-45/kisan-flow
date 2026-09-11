@@ -5,7 +5,6 @@ import TricolorStrip from '../components/TricolorStrip';
 import GovTicker from '../components/GovTicker';
 import Footer from '../components/Footer';
 import KPIStrip from '../components/KPIStrip';
-import LiveFarmerQueue from '../components/LiveFarmerQueue';
 import TokenSearch from '../components/TokenSearch';
 import ProcurementForm from '../components/ProcurementForm';
 import ReceiptModal from '../components/ReceiptModal';
@@ -23,41 +22,8 @@ const OfficerDashboard = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
 
-  const [liveQueueData, setLiveQueueData] = useState({
-    currentFarmer: null,
-    waitingFarmers: [],
-    queue_available: false,
-    lastUpdated: null,
-    fetchError: false,
-    isInitialLoad: true
-  });
-
-  const fetchLiveQueue = async () => {
-    try {
-      const data = await officerService.getLiveQueue(1); // Default centre 1
-      setLiveQueueData(prev => ({
-        ...prev,
-        currentFarmer: data.currentFarmer,
-        waitingFarmers: data.waitingFarmers,
-        queue_available: data.queue_available,
-        lastUpdated: new Date(),
-        fetchError: false,
-        isInitialLoad: false
-      }));
-    } catch(err) {
-      setLiveQueueData(prev => ({
-        ...prev,
-        fetchError: true,
-        isInitialLoad: false
-      }));
-    }
-  };
-
   useEffect(() => {
     loadKpi();
-    fetchLiveQueue();
-    const interval = setInterval(fetchLiveQueue, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadKpi = async () => {
@@ -201,46 +167,74 @@ const OfficerDashboard = () => {
           pendingTokens: queueInfo?.people_ahead !== undefined && queueInfo?.people_ahead !== null ? queueInfo.people_ahead : '—',
         }} />
 
-        {/* Section 2: Live Farmer Queue & Active Workstation (Primary View) */}
-        <LiveFarmerQueue 
-          dataUnavailable={liveQueueData.isInitialLoad ? false : !liveQueueData.queue_available}
-          fetchError={liveQueueData.fetchError}
-          lastUpdated={liveQueueData.lastUpdated}
-          currentFarmer={
-            selectedBooking ? selectedBooking : liveQueueData.currentFarmer
-          }
-          nextFarmer={null}
-          waitingFarmers={liveQueueData.waitingFarmers}
-          servedFarmers={[]}
-          onSelectFarmer={(farmer) => setSelectedBooking(farmer)}
-          onMarkArrived={handleMarkArrived}
-          onStartProcessing={handleStartProcessing}
-          actionLoading={actionLoading}
+        {/* Section 2: Token Search & Verification */}
+        <TokenSearch
+          onSearch={handleSearchBooking}
+          loading={searchLoading}
+          error={searchError}
         />
 
+        {/* Queue Operation Controls Bar for Officer */}
+        {selectedBooking && (
+          <div className="gov-card rounded-lg shadow-sm border border-slate-300 p-4 mb-6 bg-white flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                Booking #{selectedBooking.id || selectedBooking.booking_id} Status:
+              </div>
+              <div className="text-sm font-extrabold text-[#0F2253] flex items-center gap-2 mt-0.5">
+                <span className="px-2.5 py-0.5 rounded bg-blue-100 text-[#1E3A8A] border border-blue-300 font-mono">
+                  {selectedBooking.booking_status || selectedBooking.status}
+                </span>
+                {queueInfo && queueInfo.queue_available === false && (
+                  <span className="text-xs text-amber-700 font-medium flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Live queue temporarily unavailable
+                  </span>
+                )}
+                {queueInfo && queueInfo.queue_position && (
+                  <span className="text-xs text-slate-600 font-semibold">
+                    (Queue Position: #{queueInfo.queue_position})
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {(selectedBooking.booking_status === 'BOOKED' || selectedBooking.status === 'BOOKED') && (
+                <button
+                  type="button"
+                  onClick={handleMarkArrived}
+                  disabled={actionLoading}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-1.5 transition shadow-xs"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{actionLoading ? 'Marking...' : 'Mark Arrived'}</span>
+                </button>
+              )}
+
+              {(selectedBooking.booking_status === 'ARRIVED' || selectedBooking.status === 'ARRIVED' || selectedBooking.booking_status === 'IN_QUEUE' || selectedBooking.status === 'IN_QUEUE') && (
+                <button
+                  type="button"
+                  onClick={handleStartProcessing}
+                  disabled={actionLoading}
+                  className="bg-[#1E3A8A] hover:bg-[#0F2253] text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-1.5 transition shadow-xs"
+                >
+                  <Play className="w-4 h-4 text-emerald-400" />
+                  <span>{actionLoading ? 'Starting...' : 'Start Processing'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Section 3: Procurement Entry Form */}
-        {selectedBooking && (selectedBooking.booking_status === 'PROCESSING' || selectedBooking.status === 'PROCESSING') && (
+        {selectedBooking && (
           <ProcurementForm
             booking={selectedBooking}
             onSubmit={handleProcurementSubmit}
             isSubmitting={isSubmitting}
           />
         )}
-
-        {/* Section 4: Token Search & Verification (Manual Override) */}
-        <div className="mt-8 pt-6 border-t border-slate-300">
-          <div className="mb-4">
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Manual Farmer Lookup (Fallback)</h3>
-            <p className="text-xs text-slate-500">Need to find a specific farmer? Use manual override below.</p>
-          </div>
-          <TokenSearch
-            onSearch={handleSearchBooking}
-            loading={searchLoading}
-            error={searchError}
-          />
-        </div>
-
-
 
       </main>
 

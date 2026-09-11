@@ -89,7 +89,7 @@ const ProcurementForm = ({ booking, onSubmit, isSubmitting }) => {
             <div className="flex items-center justify-between pb-3 border-b border-slate-300 mb-4">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <User className="w-4 h-4 text-[#1E3A8A]" />
-                SECTION A: VERIFIED FARMER DETAILS
+                {t.procurement.partA}
               </span>
               <span className="text-[10px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded border border-green-300 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-green-600" />
@@ -171,7 +171,7 @@ const ProcurementForm = ({ booking, onSubmit, isSubmitting }) => {
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
               <Scale className="w-4 h-4 text-[#138808]" />
-              SECTION B: SCALE WEIGHMENT & QUALITY
+              {t.procurement.partB}
             </span>
             <span className="text-[10px] text-slate-500 font-mono">
               {t.procurement.scaleId}

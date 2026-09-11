@@ -16,8 +16,7 @@ const getSlots = async (req, res, next) => {
   try {
     const centreId = req.query.centreId || req.query.centre_id || req.query.centreid;
     const date = req.query.date || req.query.slot_date || req.query.slotdate;
-    const userId = req.user ? req.user.id : null;
-    const data = await farmerService.getSlots(centreId, date, userId);
+    const data = await farmerService.getSlots(centreId, date);
     res.status(200).json({
       success: true,
       data,

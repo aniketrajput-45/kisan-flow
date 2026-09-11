@@ -10,11 +10,10 @@ import {
 import { getQueueStatus, markArrival } from '../api/queue';
 import StatusBadge from '../components/StatusBadge';
 import ErrorAlert from '../components/ErrorAlert';
-import BookingTimeline from '../components/BookingTimeline';
 
 const POLLING_INTERVAL_MS = 6000; // 6 seconds live poll
 
-export const QueueScreen = ({ bookingId, onBack, onGoToPayment, onBookSlot }) => {
+export const QueueScreen = ({ bookingId, onBack, onGoToPayment }) => {
   const [queueData, setQueueData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [arriving, setArriving] = useState(false);
@@ -59,17 +58,6 @@ export const QueueScreen = ({ bookingId, onBack, onGoToPayment, onBookSlot }) =>
         setLastRefreshed(new Date());
       }
     } catch (err) {
-      if (err?.status === 401) return;
-      if (err?.status === 403) {
-        if (isMountedRef.current) {
-          setQueueData(null);
-          setError({
-            status: 403,
-            message: 'This booking pass belongs to a different farmer session. Please select your own active booking pass from Dashboard or My Passes.',
-          });
-        }
-        return;
-      }
       if (isMountedRef.current && isInitial) {
         setError(err);
       }
@@ -127,19 +115,10 @@ export const QueueScreen = ({ bookingId, onBack, onGoToPayment, onBookSlot }) =>
       {!bookingId ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyIcon}>🎫</Text>
-          <Text style={styles.emptyTitle}>No Active Booking Selected</Text>
+          <Text style={styles.emptyTitle}>No Booking Selected</Text>
           <Text style={styles.emptySub}>
-            You don't have an active slot booking selected. Please select an active booking from Dashboard or create a new slot booking.
+            Please select an active booking pass from "Dashboard" or "My Passes" to track your live queue status.
           </Text>
-          {onBookSlot && (
-            <TouchableOpacity
-              onPress={onBookSlot}
-              style={{ marginTop: 14, backgroundColor: '#059669', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13 }}>+ Book Slot Now</Text>
-            </TouchableOpacity>
-          )}
         </View>
       ) : loading && !queueData ? (
         <View style={styles.loadingCard}>
@@ -150,7 +129,6 @@ export const QueueScreen = ({ bookingId, onBack, onGoToPayment, onBookSlot }) =>
         </View>
       ) : queueData ? (
         <View>
-          <BookingTimeline currentStatus={currentStatus} />
           {/* STEP A: Status = BOOKED (Farmer has not arrived at procurement centre yet) */}
           {currentStatus === 'BOOKED' && (
             <View style={styles.card}>

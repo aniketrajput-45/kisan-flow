@@ -33,20 +33,19 @@ async function seed() {
     `, [passwordHash]);
 
     // 2. Seed Centres
-    await client.query(`
+    const centre1Res = await client.query(`
       INSERT INTO centres (name, code, district, state, capacity, is_active)
       VALUES ('Burdwan Central Procurement Centre', 'BDW-01', 'Burdwan', 'West Bengal', 500, true)
-      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+      RETURNING id;
     `);
 
-    await client.query(`
+    const centre2Res = await client.query(`
       INSERT INTO centres (name, code, district, state, capacity, is_active)
       VALUES ('Durgapur Sub-Division Procurement Centre', 'DGP-01', 'Paschim Bardhaman', 'West Bengal', 400, true)
-      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+      RETURNING id;
     `);
-
-    const centre1Res = await client.query(`SELECT id FROM centres WHERE code = 'BDW-01'`);
-    const centre2Res = await client.query(`SELECT id FROM centres WHERE code = 'DGP-01'`);
 
     const centre1Id = centre1Res.rows[0].id;
     const centre2Id = centre2Res.rows[0].id;

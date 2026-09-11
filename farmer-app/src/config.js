@@ -1,11 +1,11 @@
-import Constants from 'expo-constants';
-
 /**
  * Centralized API & App Configuration for KisanFlow Farmer App
  *
- * Backend host IP: 10.237.111.4
- * Backend port: 5000
- * API Base URL: http://10.237.111.4:5000/api
+ * IMPORTANT: When testing on a physical device or Android emulator via Expo Go,
+ * 'localhost' does NOT work. Use your machine's LAN IP address instead.
+ *
+ * Your current machine IP: 192.168.29.171
+ * Backend runs on port: 5000
  */
 
 const getApiBaseUrl = () => {
@@ -14,8 +14,9 @@ const getApiBaseUrl = () => {
     if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
   }
 
-  // Target backend laptop on local network
-  return 'http://10.237.111.4:5000/api';
+  // ✅ Use your machine's LAN IP so physical devices & emulators can reach the backend.
+  // Change this if your IP changes (run `ipconfig` to find it).
+  return 'http://192.168.29.171:5000/api';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -25,4 +26,3 @@ export const DEMO_FARMER_CREDENTIALS = {
   phone: '9876543210',
   password: 'password123'
 };
-

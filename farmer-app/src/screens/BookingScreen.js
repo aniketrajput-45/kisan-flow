@@ -84,11 +84,10 @@ const formatDateForDisplay = (isoStr) => {
 
   if (isNaN(dateObj.getTime())) return isoStr;
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayStr = new Date().toISOString().split('T')[0];
   const tom = new Date();
   tom.setDate(tom.getDate() + 1);
-  const tomStr = `${tom.getFullYear()}-${String(tom.getMonth() + 1).padStart(2, '0')}-${String(tom.getDate()).padStart(2, '0')}`;
+  const tomStr = tom.toISOString().split('T')[0];
 
   let prefix = '';
   if (isoStr === todayStr) prefix = 'Today, ';
@@ -100,7 +99,7 @@ const formatDateForDisplay = (isoStr) => {
   return `${prefix}${d} ${monthName} ${y} (${dayName})`;
 };
 
-export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
+export const BookingScreen = ({ onBookingCreated }) => {
   const [step, setStep] = useState(1);
   const [crop, setCrop] = useState('WHEAT');
   const [customCrop, setCustomCrop] = useState('');
@@ -109,27 +108,12 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
   const [centres, setCentres] = useState([]);
   const [selectedCentre, setSelectedCentre] = useState(null);
   
-  // Compute today's date in local ISO string YYYY-MM-DD
-  const todayIso = React.useMemo(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }, []);
-
-  // Default selected date to today's date
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  });
+  const todayIso = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(todayIso);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
-  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
 
   const calendarMatrix = React.useMemo(() => getCalendarMatrix(calYear, calMonth), [calYear, calMonth]);
 
@@ -139,18 +123,18 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
   const handlePrevMonth = () => {
     if (calMonth === 0) {
       setCalMonth(11);
-      setCalYear((prev) => prev - 1);
+      setCalYear(calYear - 1);
     } else {
-      setCalMonth((prev) => prev - 1);
+      setCalMonth(calMonth - 1);
     }
   };
 
   const handleNextMonth = () => {
     if (calMonth === 11) {
       setCalMonth(0);
-      setCalYear((prev) => prev + 1);
+      setCalYear(calYear + 1);
     } else {
-      setCalMonth((prev) => prev + 1);
+      setCalMonth(calMonth + 1);
     }
   };
 
@@ -159,7 +143,7 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
     d.setDate(d.getDate() + daysAhead);
     const y = d.getFullYear();
     const m = d.getMonth();
-    const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const iso = d.toISOString().split('T')[0];
     setCalYear(y);
     setCalMonth(m);
     setSelectedDate(iso);
@@ -180,18 +164,12 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
     try {
       const res = await getCentres();
       const centreList = res.data || res.centres || res || [];
+      setCentres(Array.isArray(centreList) ? centreList : []);
       if (Array.isArray(centreList) && centreList.length > 0) {
-        setCentres(centreList);
         setSelectedCentre(centreList[0]);
-      } else {
-        setCentres([]);
-        setSelectedCentre(null);
       }
     } catch (err) {
-      if (err?.status === 401) return;
-      setError(err.message || 'Failed to load procurement centres from backend.');
-      setCentres([]);
-      setSelectedCentre(null);
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -210,18 +188,14 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
     try {
       const res = await getSlots(centreId, dateStr);
       const slotList = res.data || res.slots || res || [];
+      setSlots(Array.isArray(slotList) ? slotList : []);
       if (Array.isArray(slotList) && slotList.length > 0) {
-        setSlots(slotList);
         setSelectedSlot(slotList[0]);
       } else {
-        setSlots([]);
         setSelectedSlot(null);
       }
     } catch (err) {
-      if (err?.status === 401) return;
-      setError(err.message || 'Failed to load available slots for this date.');
-      setSlots([]);
-      setSelectedSlot(null);
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -259,20 +233,7 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
       }
     } catch (err) {
       setLoading(false);
-      if (err?.status === 401) return;
-      
-      const errMsg = err?.message || (typeof err === 'string' ? err : '');
-      const isDuplicateError = errMsg.toLowerCase().includes('already have an active booking');
-      
-      if (isDuplicateError) {
-        setError({
-          ...err,
-          isDuplicate: true,
-          message: 'You already have an active procurement token pass for this slot.',
-        });
-      } else {
-        setError(err);
-      }
+      setError(err);
     }
   };
 
@@ -299,26 +260,7 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
         ))}
       </View>
 
-      {error?.isDuplicate ? (
-        <View style={styles.duplicateAlertCard}>
-          <Text style={styles.duplicateAlertTitle}>⚠️ Active Booking Exists</Text>
-          <Text style={styles.duplicateAlertMsg}>
-            You already have an active procurement token pass reserved for this slot at {selectedCentre?.name}.
-          </Text>
-          <View style={styles.duplicateActionsRow}>
-            {onGoToMyBookings && (
-              <TouchableOpacity style={styles.viewPassBtn} onPress={onGoToMyBookings} activeOpacity={0.8}>
-                <Text style={styles.viewPassBtnText}>🎫 View My Active Booking Pass</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={styles.pickOtherBtn} onPress={() => setError(null)} activeOpacity={0.8}>
-              <Text style={styles.pickOtherBtnText}>Select Different Date/Slot</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        <ErrorAlert error={error} onDismiss={() => setError(null)} />
-      )}
+      <ErrorAlert error={error} onDismiss={() => setError(null)} />
 
       {/* STEP 1: Crop & Quantity */}
       {step === 1 && (
@@ -661,25 +603,23 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
                   const isSelected = selectedSlot?.id === slot.id;
                   const availableSeats = slot.available_seats !== undefined ? slot.available_seats : (slot.available_count !== undefined ? slot.available_count : (slot.capacity - (slot.booked_count || 0)));
                   const isFull = availableSeats <= 0;
-                  const isAlreadyBooked = Boolean(slot.is_already_booked);
 
                   return (
                     <TouchableOpacity
                       key={slot.id}
-                      disabled={isFull || isAlreadyBooked}
+                      disabled={isFull}
                       onPress={() => setSelectedSlot(slot)}
                       style={[
                         styles.slotBtn,
                         isSelected && styles.slotBtnSelected,
-                        isFull && styles.slotBtnFull,
-                        isAlreadyBooked && styles.slotBtnBooked,
+                        isFull && styles.slotBtnFull
                       ]}
                     >
-                      <Text style={[styles.slotTime, isFull && styles.slotTimeFull, isAlreadyBooked && styles.slotTimeBooked]}>
+                      <Text style={[styles.slotTime, isFull && styles.slotTimeFull]}>
                         {slot.start_time} - {slot.end_time}
                       </Text>
-                      <Text style={[styles.slotMeta, isAlreadyBooked ? styles.slotBookedText : (isFull ? styles.slotFullText : styles.slotAvailText)]}>
-                        {isAlreadyBooked ? '✓ Already Booked by You' : (isFull ? 'SLOT FULL' : `${availableSeats} seats available`)}
+                      <Text style={[styles.slotMeta, isFull ? styles.slotFullText : styles.slotAvailText]}>
+                        {isFull ? 'SLOT FULL' : `${availableSeats} seats available`}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -1225,69 +1165,6 @@ const styles = StyleSheet.create({
   },
   shortcutTextActive: {
     color: '#047857',
-  },
-  duplicateAlertCard: {
-    backgroundColor: '#fffbe6',
-    borderColor: '#ffe58f',
-    borderWidth: 1.5,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-  },
-  duplicateAlertTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#d46b08',
-    marginBottom: 4,
-  },
-  duplicateAlertMsg: {
-    fontSize: 13,
-    color: '#873800',
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  duplicateActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  viewPassBtn: {
-    backgroundColor: '#059669',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  viewPassBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  pickOtherBtn: {
-    backgroundColor: '#ffffff',
-    borderColor: '#d9d9d9',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  pickOtherBtnText: {
-    color: '#595959',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  slotBtnBooked: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#86efac',
-    borderWidth: 1.5,
-    opacity: 0.85,
-  },
-  slotTimeBooked: {
-    color: '#166534',
-    fontWeight: '700',
-  },
-  slotBookedText: {
-    color: '#15803d',
-    fontWeight: '700',
   },
 });
 

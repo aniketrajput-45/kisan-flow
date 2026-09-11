@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   ActivityIndicator,
@@ -7,10 +7,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { LanguageProvider } from '../context/LanguageContext';
-import { Navbar } from '../components/Navbar';
-import NotificationModal from '../components/NotificationModal';
-import ProfileHelpModal from '../components/ProfileHelpModal';
+import Navbar from '../components/Navbar';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -18,45 +15,14 @@ import BookingScreen from '../screens/BookingScreen';
 import BookingDetailsScreen from '../screens/BookingDetailsScreen';
 import QueueScreen from '../screens/QueueScreen';
 import PaymentScreen from '../screens/PaymentScreen';
-import { getMyBookings } from '../api/bookings';
 
-export const AppNavigatorContent = () => {
+export const AppNavigator = () => {
   const { token, loading } = useAuth();
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
-  const [currentTab, setCurrentTab] = useState('home'); // 'home' | 'booking' | 'my-bookings' | 'queue' | 'payment' | 'details'
+  const [currentTab, setCurrentTab] = useState('home'); // 'home' | 'booking' | 'my-bookings' | 'queue' | 'payment'
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [selectedQueueBookingId, setSelectedQueueBookingId] = useState(null);
   const [selectedPaymentBookingId, setSelectedPaymentBookingId] = useState(null);
-
-  // Modals state
-  const [notificationsVisible, setNotificationsVisible] = useState(false);
-  const [profileVisible, setProfileVisible] = useState(false);
-
-  // Fetch logged-in user's active booking automatically
-  useEffect(() => {
-    if (token) {
-      getMyBookings()
-        .then((res) => {
-          const list = res.data || res || [];
-          if (Array.isArray(list) && list.length > 0) {
-            const active = list.find(
-              (b) => b.status === 'BOOKED' || b.status === 'ARRIVED' || b.status === 'IN_QUEUE' || b.status === 'PROCESSING'
-            ) || list[0];
-
-            if (active) {
-              setSelectedBooking(active);
-              setSelectedQueueBookingId(active.id);
-              setSelectedPaymentBookingId(active.id);
-            }
-          } else {
-            setSelectedBooking(null);
-            setSelectedQueueBookingId(null);
-            setSelectedPaymentBookingId(null);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [token]);
 
   if (loading) {
     return (
@@ -83,12 +49,7 @@ export const AppNavigatorContent = () => {
   // Main Farmer Application Shell
   return (
     <SafeAreaView style={styles.appContainer}>
-      <Navbar
-        currentTab={currentTab}
-        onTabChange={(tab) => setCurrentTab(tab)}
-        onOpenNotifications={() => setNotificationsVisible(true)}
-        onOpenProfile={() => setProfileVisible(true)}
-      />
+      <Navbar currentTab={currentTab} onTabChange={(tab) => setCurrentTab(tab)} />
 
       <View style={styles.mainContent}>
         {currentTab === 'home' && (
@@ -117,7 +78,6 @@ export const AppNavigatorContent = () => {
               setSelectedPaymentBookingId(newBooking.id);
               setCurrentTab('details');
             }}
-            onGoToMyBookings={() => setCurrentTab('my-bookings')}
           />
         )}
 
@@ -162,7 +122,6 @@ export const AppNavigatorContent = () => {
               setSelectedPaymentBookingId(bId);
               setCurrentTab('payment');
             }}
-            onBookSlot={() => setCurrentTab('booking')}
           />
         )}
 
@@ -170,30 +129,12 @@ export const AppNavigatorContent = () => {
           <PaymentScreen
             bookingId={selectedPaymentBookingId || selectedBooking?.id}
             onBack={() => setCurrentTab('home')}
-            onBookSlot={() => setCurrentTab('booking')}
           />
         )}
       </View>
-
-      {/* Global Modals */}
-      <NotificationModal
-        visible={notificationsVisible}
-        onClose={() => setNotificationsVisible(false)}
-      />
-
-      <ProfileHelpModal
-        visible={profileVisible}
-        onClose={() => setProfileVisible(false)}
-      />
     </SafeAreaView>
   );
 };
-
-export const AppNavigator = () => (
-  <LanguageProvider>
-    <AppNavigatorContent />
-  </LanguageProvider>
-);
 
 const styles = StyleSheet.create({
   loadingContainer: {
