@@ -221,6 +221,19 @@ function setupDbFallback(pool) {
           return resolve({ rows: centre ? [{ code: centre.code }] : [] });
         }
 
+        if (queryStr.includes('SELECT token_number') && queryStr.includes('FROM bookings') && queryStr.includes('WHERE centre_id = $1')) {
+          const [centreId] = params;
+          const centreBookings = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId));
+          const last = centreBookings[centreBookings.length - 1];
+          return resolve({ rows: last ? [{ token_number: last.token_number }] : [] });
+        }
+
+        if (queryStr.includes('COUNT(*)') && queryStr.includes('FROM bookings') && queryStr.includes('WHERE centre_id = $1') && !queryStr.includes('booking_date = $2')) {
+          const [centreId] = params;
+          const total = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId)).length;
+          return resolve({ rows: [{ total }] });
+        }
+
         if (queryStr.includes('COUNT(*)') && queryStr.includes('FROM bookings') && queryStr.includes('WHERE centre_id = $1 AND booking_date = $2')) {
           const [centreId, date] = params;
           const total = memoryDb.bookings.filter(b => String(b.centre_id) === String(centreId) && String(b.booking_date) === String(date)).length;
@@ -272,6 +285,50 @@ function setupDbFallback(pool) {
               end_time: slot.end_time,
             }],
           });
+        }
+
+        if (queryStr.includes('FROM bookings b') && queryStr.includes('JOIN users u') && queryStr.includes('JOIN slots s')) {
+          const centreParam = params[0];
+          const dateParam = params[1] ? String(params[1]).split('T')[0] : null;
+          const slotParam = params[2];
+          const active = memoryDb.bookings
+            .filter(b => {
+              const matchesCentre = !centreParam || String(b.centre_id) === String(centreParam);
+              const matchesSlot = !slotParam || String(b.slot_id) === String(slotParam);
+              const isStatusActive = ['BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING'].includes(b.status) && b.status !== 'COMPLETED';
+              return matchesCentre && matchesSlot && isStatusActive;
+            })
+            .map(b => {
+              const farmer = memoryDb.users.find(u => String(u.id) === String(b.user_id)) || {};
+              const centre = memoryDb.centres.find(c => String(c.id) === String(b.centre_id)) || {};
+              const slot = memoryDb.slots.find(s => String(s.id) === String(b.slot_id)) || {};
+              return {
+                id: b.id,
+                user_id: b.user_id,
+                centre_id: b.centre_id,
+                slot_id: b.slot_id,
+                booking_date: b.booking_date,
+                token_number: b.token_number,
+                qr_code: b.qr_code,
+                crop: b.crop,
+                quantity_kg: b.quantity_kg,
+                status: b.status,
+                created_at: b.created_at,
+                farmer_name: farmer.name || 'Ramesh Kumar',
+                farmer_phone: farmer.phone || '9876543210',
+                centre_name: centre.name || 'Burdwan Central Procurement Centre',
+                centre_code: centre.code || 'BDW-01',
+                start_time: slot.start_time || '09:00:00',
+                end_time: slot.end_time || '11:00:00',
+              };
+            })
+            .sort((a, b) => {
+              if (a.status === 'PROCESSING' && b.status !== 'PROCESSING') return -1;
+              if (b.status === 'PROCESSING' && a.status !== 'PROCESSING') return 1;
+              return a.id - b.id;
+            });
+
+          return resolve({ rows: active });
         }
 
         if (queryStr.includes('FROM bookings b') && queryStr.includes('WHERE b.user_id = $1')) {
@@ -509,7 +566,7 @@ function setupDbFallback(pool) {
           return resolve({ rows });
         }
 
-        if (queryStr.includes('SELECT id, name, code, district, state FROM centres WHERE is_active = true')) {
+        if (queryStr.includes('FROM centres WHERE is_active = true')) {
           return resolve({ rows: memoryDb.centres });
         }
 

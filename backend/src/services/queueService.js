@@ -310,8 +310,8 @@ class QueueService {
         throw err;
       }
 
-      if (booking.status === 'BOOKED') {
-        const err = new Error(`Booking #${bookingId} must be ARRIVED or IN_QUEUE before starting processing.`);
+      if (!['BOOKED', 'ARRIVED', 'IN_QUEUE'].includes(booking.status)) {
+        const err = new Error(`Booking #${bookingId} is in status '${booking.status}' and cannot be started.`);
         err.statusCode = 400;
         throw err;
       }
@@ -410,6 +410,62 @@ class QueueService {
     } catch (err) {
       console.error('[Redis removeFromQueue Error]', err.message);
     }
+  }
+
+  /**
+   * Get active queue of farmers currently in queue / processing at centre (strictly excluding COMPLETED)
+   */
+  async getActiveQueue(centreId, targetDate, slotId) {
+    let dateStr = targetDate;
+    if (!dateStr || typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      dateStr = new Date().toISOString().split('T')[0];
+    }
+
+    let query = `
+      SELECT b.id, b.user_id, b.centre_id, b.slot_id, b.booking_date, b.token_number, b.qr_code,
+             b.crop, b.quantity_kg, b.status, b.created_at,
+             u.name AS farmer_name, u.phone AS farmer_phone,
+             c.name AS centre_name, c.code AS centre_code,
+             s.start_time, s.end_time
+      FROM bookings b
+      JOIN users u ON b.user_id = u.id
+      JOIN centres c ON b.centre_id = c.id
+      JOIN slots s ON b.slot_id = s.id
+      WHERE (b.centre_id = $1 OR $1 IS NULL)
+        AND b.booking_date = $2
+        AND b.status IN ('BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING')
+        AND b.status != 'COMPLETED'
+    `;
+
+    const queryParams = [centreId ? parseInt(centreId, 10) : null, dateStr];
+    if (slotId) {
+      queryParams.push(parseInt(slotId, 10));
+      query += ` AND b.slot_id = $3`;
+    }
+
+    query += `
+      ORDER BY 
+        CASE WHEN b.status = 'PROCESSING' THEN 0 ELSE 1 END,
+        b.id ASC
+    `;
+
+    const result = await pool.query(query, queryParams);
+
+    const activeList = result.rows.map((row, index) => {
+      const isProcessing = row.status === 'PROCESSING';
+      const position = isProcessing ? 0 : index + 1;
+      const peopleAhead = isProcessing ? 0 : index;
+      const estWaitMin = peopleAhead * DEMO_AVG_PROCESSING_MINUTES;
+
+      return {
+        ...row,
+        queue_position: isProcessing ? 'Serving' : `#${position}`,
+        people_ahead: peopleAhead,
+        estimated_wait_minutes: estWaitMin,
+      };
+    });
+
+    return activeList;
   }
 }
 

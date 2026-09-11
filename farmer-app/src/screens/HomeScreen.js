@@ -65,7 +65,7 @@ export const HomeScreen = ({ onBookSlot, onSelectBooking, onGoToQueue, onGoToPay
 
   const activeBooking = bookings.find(
     (b) => b.status === 'BOOKED' || b.status === 'ARRIVED' || b.status === 'IN_QUEUE' || b.status === 'PROCESSING'
-  ) || bookings[0];
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.container}>

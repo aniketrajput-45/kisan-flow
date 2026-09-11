@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS bookings (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     -- Enforce Centre ↔ Slot relational integrity (RESTRICT delete to preserve historical records)
     CONSTRAINT fk_booking_centre_slot FOREIGN KEY (slot_id, centre_id) REFERENCES slots(id, centre_id) ON DELETE RESTRICT,
-    -- Token uniqueness scoped to Centre + Procurement Date
-    CONSTRAINT uq_centre_date_token UNIQUE (centre_id, booking_date, token_number)
+    -- Strictly monotonic token uniqueness scoped to Centre across all dates
+    CONSTRAINT uq_centre_token UNIQUE (centre_id, token_number)
 );
 
 -- Partial unique index preventing double-booking active slots for a farmer

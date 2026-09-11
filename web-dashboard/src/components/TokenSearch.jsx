@@ -89,32 +89,6 @@ const TokenSearch = ({ onSearch, loading, error }) => {
             </button>
           </div>
 
-          {/* Quick Demo Chips */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-[11px] text-slate-600 font-medium">{t.search.demoTokens}</span>
-            <button
-              type="button"
-              onClick={() => handleQuickSelect('BDW-001')}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-blue-100 border border-slate-300 hover:border-blue-400 rounded text-[11px] font-mono text-[#0F2253] transition font-bold"
-            >
-              BDW-001 (Ramesh - 50 Qtl)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickSelect('BDW-002')}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-blue-100 border border-slate-300 hover:border-blue-400 rounded text-[11px] font-mono text-[#0F2253] transition font-bold"
-            >
-              BDW-002 (Gurpreet - 42 Qtl)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickSelect('BDW-003')}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-blue-100 border border-slate-300 hover:border-blue-400 rounded text-[11px] font-mono text-[#0F2253] transition font-bold"
-            >
-              BDW-003 (Rajendra - 35 Qtl)
-            </button>
-          </div>
-
           {/* QR Simulation Box */}
           {showQrMock && (
             <div className="mt-4 p-4 bg-blue-50/70 border border-blue-200 rounded-md text-xs text-slate-700 flex items-center justify-between animate-fadeIn">

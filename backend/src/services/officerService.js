@@ -1,7 +1,5 @@
 const pool = require('../config/db');
 
-const DEMO_RATE_PER_KG = 22.75;
-
 class OfficerService {
   async lookupBooking(queryOrToken) {
     if (!queryOrToken) {
@@ -91,8 +89,11 @@ class OfficerService {
         throw err;
       }
 
-      // Calculate total procurement amount using prototype DEMO_RATE_PER_KG (₹22.75/kg)
-      const totalAmount = parseFloat((parseFloat(weight_kg) * DEMO_RATE_PER_KG).toFixed(2));
+      // Calculate dynamic total procurement amount using live/official government MSP
+      const mspService = require('./mspService');
+      const cropMsp = await mspService.getMspForCrop(booking.crop, grade);
+      const effectiveRate = cropMsp.rate_per_kg;
+      const totalAmount = parseFloat((parseFloat(weight_kg) * effectiveRate).toFixed(2));
 
       // 4. Insert procurement
       const procurementRes = await client.query(
@@ -102,6 +103,9 @@ class OfficerService {
         [booking_id, officerId, weight_kg, grade, totalAmount]
       );
       const procurement = procurementRes.rows[0];
+      procurement.rate_per_kg = effectiveRate;
+      procurement.msp_per_quintal = cropMsp.rate_per_quintal;
+      procurement.crop_name = cropMsp.crop_name;
 
       // 5. Insert payment with RECORDED status
       const referenceNumber = `PAY-2026-${booking_id}-${Date.now()}`;

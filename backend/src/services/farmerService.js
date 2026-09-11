@@ -123,21 +123,39 @@ class FarmerService {
       // Derive booking_date from slot.slot_date
       const bookingDate = slot.slot_date;
 
-      // 5. Generate Centre + Date scoped token number (e.g. BDW-001)
+      // 5. Generate Strictly Monotonic Unique Token Number (Never Reused Across Dates)
       const centreCodeRes = await client.query(
         'SELECT code FROM centres WHERE id = $1',
         [centre_id]
       );
       const centreCodePrefix = centreCodeRes.rows[0]?.code ? centreCodeRes.rows[0].code.split('-')[0] : 'TKN';
 
-      const tokenCountRes = await client.query(
-        `SELECT COUNT(*) AS total
+      // Find the highest sequence number ever issued for this centre
+      const lastTokenRes = await client.query(
+        `SELECT token_number
          FROM bookings
-         WHERE centre_id = $1 AND booking_date = $2`,
-        [centre_id, bookingDate]
+         WHERE centre_id = $1
+         ORDER BY id DESC
+         LIMIT 1`,
+        [centre_id]
       );
-      const tokenSeq = (tokenCountRes.rows && tokenCountRes.rows[0] ? parseInt(tokenCountRes.rows[0].total, 10) : 0) + 1;
-      const tokenNumber = `${centreCodePrefix}-${String(tokenSeq).padStart(3, '0')}`;
+
+      let maxSeq = 0;
+      if (lastTokenRes.rows && lastTokenRes.rows.length > 0) {
+        const lastToken = lastTokenRes.rows[0].token_number;
+        const match = String(lastToken).match(/(\d+)$/);
+        if (match) {
+          maxSeq = parseInt(match[1], 10);
+        }
+      }
+
+      const totalCountRes = await client.query(
+        `SELECT COUNT(*) AS total FROM bookings WHERE centre_id = $1`,
+        [centre_id]
+      );
+      const totalCount = totalCountRes.rows && totalCountRes.rows[0] ? parseInt(totalCountRes.rows[0].total, 10) : 0;
+      const nextSeq = Math.max(maxSeq, totalCount) + 1;
+      const tokenNumber = `${centreCodePrefix}-${String(nextSeq).padStart(3, '0')}`;
 
       // 6. Generate QR code identifier
       const qrIdentifier = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
