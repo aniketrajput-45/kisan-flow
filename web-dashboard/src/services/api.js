@@ -161,22 +161,25 @@ export const queueService = {
     }
   },
 
-  async getActiveQueue(centreIdOrOptions, maybeDate, maybeSlotId) {
+  async getActiveQueue(centreIdOrOptions, maybeDate, maybeSlotId, maybeStatus) {
     try {
       let centreId = centreIdOrOptions;
       let date = maybeDate;
       let slotId = maybeSlotId;
+      let status = maybeStatus;
 
       if (centreIdOrOptions && typeof centreIdOrOptions === 'object') {
         centreId = centreIdOrOptions.centreId;
         date = centreIdOrOptions.date;
         slotId = centreIdOrOptions.slotId;
+        status = centreIdOrOptions.status;
       }
 
       const params = new URLSearchParams();
       if (centreId) params.append('centreId', centreId);
       if (date && date !== 'ALL') params.append('date', date);
       if (slotId && slotId !== 'ALL') params.append('slotId', slotId);
+      if (status && status !== 'ARRIVED') params.append('status', status);
       const queryString = params.toString();
       const url = queryString ? `/queue/active?${queryString}` : '/queue/active';
       const response = await apiClient.get(url);

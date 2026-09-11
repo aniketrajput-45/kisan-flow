@@ -415,12 +415,23 @@ class QueueService {
   /**
    * Get active queue of farmers currently in queue / processing at centre (strictly excluding COMPLETED)
    */
-  async getActiveQueue(centreId, targetDate, slotId) {
+  async getActiveQueue(centreId, targetDate, slotId, statusFilter) {
     let dateStr = targetDate;
     if (dateStr === 'ALL' || dateStr === '' || !dateStr) {
       dateStr = null;
     } else if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       dateStr = null;
+    }
+
+    // Default: only farmers who have marked arrival at the centre (ARRIVED, IN_QUEUE, PROCESSING)
+    // Booked farmers only enter the live queue once they arrive.
+    let statusClause = "b.status IN ('ARRIVED', 'IN_QUEUE', 'PROCESSING')";
+    if (statusFilter === 'ALL') {
+      statusClause = "b.status IN ('BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING')";
+    } else if (statusFilter === 'BOOKED') {
+      statusClause = "b.status = 'BOOKED'";
+    } else if (statusFilter === 'ARRIVED') {
+      statusClause = "b.status IN ('ARRIVED', 'IN_QUEUE', 'PROCESSING')";
     }
 
     let query = `
@@ -435,7 +446,7 @@ class QueueService {
       JOIN slots s ON b.slot_id = s.id
       WHERE (b.centre_id = $1 OR $1 IS NULL)
         AND ($2::text IS NULL OR b.booking_date::text = $2::text)
-        AND b.status IN ('BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING')
+        AND ${statusClause}
         AND b.status != 'COMPLETED'
     `;
 

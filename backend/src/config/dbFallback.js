@@ -76,7 +76,7 @@ class MemoryDb {
         qr_code: 'QR_BDW-001_101',
         crop: 'Wheat',
         quantity_kg: 2000,
-        status: 'BOOKED',
+        status: 'IN_QUEUE',
         created_at: new Date().toISOString(),
       },
       {
@@ -89,7 +89,7 @@ class MemoryDb {
         qr_code: 'QR_BDW-002_102',
         crop: 'Mustard',
         quantity_kg: 1500,
-        status: 'BOOKED',
+        status: 'ARRIVED',
         created_at: new Date().toISOString(),
       },
       {
@@ -102,7 +102,7 @@ class MemoryDb {
         crop: 'Paddy',
         quantity_kg: 3200,
         qr_code: 'QR_BDW-003_103',
-        status: 'BOOKED',
+        status: 'IN_QUEUE',
         created_at: new Date().toISOString(),
       },
       {
@@ -451,12 +451,20 @@ function setupDbFallback(pool) {
             ? String(params[2])
             : null;
 
+          const allowsBooked = queryStr.includes("'BOOKED'");
+          const onlyBooked = queryStr.includes("b.status = 'BOOKED'");
+          const eligibleStatuses = onlyBooked
+            ? ['BOOKED']
+            : allowsBooked
+            ? ['BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING']
+            : ['ARRIVED', 'IN_QUEUE', 'PROCESSING'];
+
           const active = memoryDb.bookings
             .filter(b => {
               const matchesCentre = !centreParam || String(b.centre_id) === String(centreParam);
               const matchesDate = !dateParam || String(b.booking_date).split('T')[0] === dateParam;
               const matchesSlot = !slotParam || String(b.slot_id) === String(slotParam);
-              const isStatusActive = ['BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING'].includes(b.status) && b.status !== 'COMPLETED';
+              const isStatusActive = eligibleStatuses.includes(b.status) && b.status !== 'COMPLETED';
               return matchesCentre && matchesDate && matchesSlot && isStatusActive;
             })
             .map(b => {
