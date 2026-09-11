@@ -3,6 +3,12 @@ const config = require('./config/env');
 
 const server = app.listen(config.port, '0.0.0.0', () => {
   console.log(`[KisanFlow API] Server running on port ${config.port} (${config.env} mode)`);
+  try {
+    const queueNotificationScheduler = require('./services/queueNotificationScheduler');
+    queueNotificationScheduler.start(60000);
+  } catch (sErr) {
+    console.error('[Queue Notification Scheduler Init Error]', sErr.message);
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {

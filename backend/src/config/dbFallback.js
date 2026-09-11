@@ -1,7 +1,7 @@
 // In-memory database store for testing/verification when local Postgres is not running
 class MemoryDb {
   constructor() {
-    this.users = [];
+    this.initDefaultUsers();
     this.centres = [
       { id: 1, name: 'Burdwan Central Procurement Centre', code: 'BDW-01', district: 'Burdwan', state: 'West Bengal', capacity: 500, is_active: true },
       { id: 2, name: 'Durgapur Sub-Division Procurement Centre', code: 'DGP-01', district: 'Paschim Bardhaman', state: 'West Bengal', capacity: 400, is_active: true },
@@ -11,15 +11,23 @@ class MemoryDb {
       { id: 2, centre_id: 1, slot_date: '2026-09-10', start_time: '11:00:00', end_time: '13:00:00', capacity: 1, booked_count: 0 }, // Capacity 1 for concurrency test
     ];
     this.bookings = [];
-    this.nextUserId = 1;
+    this.nextUserId = 4;
     this.nextBookingId = 100;
   }
 
+  initDefaultUsers() {
+    this.users = [
+      { id: 1, name: 'Ramesh Kumar', phone: '9876543210', role: 'FARMER', password_hash: 'mock_hash_password123', created_at: new Date() },
+      { id: 2, name: 'Suresh Sharma', phone: '9876543211', role: 'OFFICER', password_hash: 'mock_hash_password123', created_at: new Date() },
+      { id: 3, name: 'Anita Roy', phone: '9876543212', role: 'ADMIN', password_hash: 'mock_hash_password123', created_at: new Date() },
+    ];
+  }
+
   reset() {
-    this.users = [];
+    this.initDefaultUsers();
     this.bookings = [];
     this.slots[1].booked_count = 0;
-    this.nextUserId = 1;
+    this.nextUserId = 4;
     this.nextBookingId = 100;
   }
 }
@@ -30,45 +38,69 @@ function setupDbFallback(pool) {
   const originalQuery = pool.query.bind(pool);
   const originalConnect = pool.connect.bind(pool);
 
-  pool.connect = async () => {
-    try {
-      const client = await originalConnect();
-      pool._useRealPostgres = true;
-      seedDefaultUsers(pool);
-      return client;
-    } catch (err) {
-      pool._useRealPostgres = false;
-      if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED') || process.env.USE_MOCK_DB === 'true') {
-        return {
-          query: pool.query,
-          release: () => {},
-        };
-      }
-      throw err;
+  pool.connect = (cb) => {
+    if (typeof cb === 'function') {
+      originalConnect((err, client, release) => {
+        if (err) {
+          pool._useRealPostgres = false;
+          if (err.code === 'ECONNREFUSED' || (err.message && err.message.includes('ECONNREFUSED')) || process.env.USE_MOCK_DB === 'true') {
+            const mockClient = { query: pool.query, release: () => {} };
+            return cb(null, mockClient, () => {});
+          }
+          return cb(err);
+        }
+        pool._useRealPostgres = true;
+        seedDefaultUsers(client).finally(() => cb(null, client, release));
+      });
+      return;
     }
+
+    return new Promise((resolve, reject) => {
+      originalConnect((err, client, release) => {
+        if (err) {
+          pool._useRealPostgres = false;
+          if (err.code === 'ECONNREFUSED' || (err.message && err.message.includes('ECONNREFUSED')) || process.env.USE_MOCK_DB === 'true') {
+            const mockClient = { query: pool.query, release: () => {} };
+            return resolve(mockClient);
+          }
+          return reject(err);
+        }
+        pool._useRealPostgres = true;
+        seedDefaultUsers(client).finally(() => resolve(client));
+      });
+    });
   };
 
-async function seedDefaultUsers(pool) {
-  try {
-    const existing = await pool.query('SELECT id FROM users WHERE phone = $1', ['9876543210']);
-    if (existing.rows.length === 0) {
-      const bcrypt = require('bcryptjs');
-      const hash = await bcrypt.hash('password123', 10);
-      await pool.query(
-        `INSERT INTO users (name, phone, role, password_hash)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (phone) DO NOTHING`,
-        ['Ramesh Kumar', '9876543210', 'FARMER', hash]
-      );
+  async function seedDefaultUsers(client) {
+    if (pool._hasSeeded) return;
+    pool._hasSeeded = true;
+    try {
+      const existing = await client.query('SELECT id FROM users WHERE phone IN ($1, $2, $3)', ['9876543210', '9876543211', '9876543212']);
+      if (existing.rows.length < 3) {
+        const bcrypt = require('bcryptjs');
+        const hash = await bcrypt.hash('password123', 10);
+        const defaultUsers = [
+          ['Ramesh Kumar', '9876543210', 'FARMER', hash],
+          ['Suresh Sharma', '9876543211', 'OFFICER', hash],
+          ['Anita Roy', '9876543212', 'ADMIN', hash],
+        ];
+        for (const [name, phone, role, password_hash] of defaultUsers) {
+          await client.query(
+            `INSERT INTO users (name, phone, role, password_hash)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role, password_hash = EXCLUDED.password_hash`,
+            [name, phone, role, password_hash]
+          );
+        }
+      }
+    } catch (e) {
+      // Non-fatal
     }
-  } catch (e) {
-    // Non-fatal
   }
-}
 
-  pool.query = (text, params) => {
-    if (pool._useRealPostgres) {
-      return originalQuery(text, params);
+  pool.query = (text, params, cb) => {
+    if (process.env.USE_MOCK_DB !== 'true' && pool._useRealPostgres !== false) {
+      return originalQuery(text, params, cb);
     }
     return new Promise((resolve, reject) => {
       try {

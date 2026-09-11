@@ -161,11 +161,18 @@ class QueueService {
    * Get Live Queue Status & ETA for a specific booking
    */
   async getQueueStatus(reqUser, bookingId) {
+    const parsedId = Number(bookingId);
+    if (!bookingId || isNaN(parsedId) || !Number.isInteger(parsedId) || parsedId <= 0) {
+      const err = new Error('Invalid booking ID');
+      err.statusCode = 400;
+      throw err;
+    }
+
     const bookingRes = await pool.query(
       `SELECT b.id, b.user_id, b.centre_id, b.booking_date, b.token_number, b.status
        FROM bookings b
        WHERE b.id = $1`,
-      [bookingId]
+      [parsedId]
     );
 
     if (bookingRes.rows.length === 0) {
@@ -342,6 +349,26 @@ class QueueService {
       } catch (rErr) {
         redisHealthy = false;
         console.error('[Redis Update Failure on Start Processing]', rErr.message);
+      }
+
+      // Decoupled Turn Called SMS notification:
+      try {
+        const smsService = require('./smsService');
+        const farmerRes = await pool.query(
+          `SELECT u.phone AS farmer_phone, u.id AS farmer_id FROM bookings b JOIN users u ON b.user_id = u.id WHERE b.id = $1`,
+          [booking.id]
+        );
+        if (farmerRes.rows.length > 0) {
+          await smsService.sendQueueNotification({
+            bookingId: booking.id,
+            farmerPhone: farmerRes.rows[0].farmer_phone,
+            tokenNumber: booking.token_number,
+            messageType: 'TURN_CALLED',
+            farmerId: farmerRes.rows[0].farmer_id,
+          });
+        }
+      } catch (smsErr) {
+        console.error('[StartProcessing Turn Called SMS Error - Non-fatal]', smsErr.message);
       }
 
       return {

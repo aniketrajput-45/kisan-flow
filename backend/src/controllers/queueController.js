@@ -16,7 +16,14 @@ const markArrived = async (req, res, next) => {
 const getQueueStatus = async (req, res, next) => {
   try {
     const { bookingId } = req.params;
-    const data = await queueService.getQueueStatus(req.user, bookingId);
+    const numId = Number(bookingId);
+    if (!bookingId || isNaN(numId) || !Number.isInteger(numId) || numId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid booking ID',
+      });
+    }
+    const data = await queueService.getQueueStatus(req.user, numId);
     res.status(200).json({
       success: true,
       data,
@@ -29,7 +36,14 @@ const getQueueStatus = async (req, res, next) => {
 const startProcessing = async (req, res, next) => {
   try {
     const { bookingId } = req.params;
-    const data = await queueService.startProcessing(bookingId);
+    const numId = Number(bookingId);
+    if (!bookingId || isNaN(numId) || !Number.isInteger(numId) || numId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid booking ID',
+      });
+    }
+    const data = await queueService.startProcessing(numId);
     res.status(200).json({
       success: true,
       data,

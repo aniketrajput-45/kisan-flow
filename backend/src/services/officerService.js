@@ -129,7 +129,7 @@ class OfficerService {
         console.error('[Procurement Queue Cleanup Error - Non-fatal]', qErr.message);
       }
 
-      // Decoupled Outbound SMS dispatch: attempt after DB commit so SMS failure never rolls back procurement/payment
+      // Decoupled Outbound SMS dispatches (Procurement Details + Payment Recorded): attempt after DB commit
       let smsResult = null;
       try {
         const smsService = require('./smsService');
@@ -141,6 +141,16 @@ class OfficerService {
           grade: grade,
           centreName: booking.centre_name,
           procurementId: procurement.id,
+          bookingId: booking.id,
+          farmerId: booking.user_id,
+        });
+
+        await smsService.sendPaymentNotification({
+          bookingId: booking.id,
+          farmerPhone: booking.farmer_phone,
+          amount: totalAmount,
+          status: 'RECORDED',
+          farmerId: booking.user_id,
         });
       } catch (smsErr) {
         console.error('[Procurement SMS Error - Non-fatal]', smsErr.message);
@@ -238,6 +248,30 @@ class OfficerService {
       await client.query('COMMIT');
 
       const updatedRow = updateRes.rows && updateRes.rows[0] ? updateRes.rows[0] : { id: paymentId, status: nextStatus, amount: payment.amount, updated_at: new Date() };
+
+      // Decoupled Payment Status Notification: attempt after DB commit
+      try {
+        const smsService = require('./smsService');
+        const payDetails = await pool.query(
+          `SELECT p.booking_id, p.farmer_id, u.phone AS farmer_phone
+           FROM payments p
+           JOIN users u ON p.farmer_id = u.id
+           WHERE p.id = $1`,
+          [paymentId]
+        );
+        if (payDetails.rows.length > 0) {
+          const pd = payDetails.rows[0];
+          await smsService.sendPaymentNotification({
+            bookingId: pd.booking_id,
+            farmerPhone: pd.farmer_phone,
+            amount: updatedRow.amount,
+            status: updatedRow.status,
+            farmerId: pd.farmer_id,
+          });
+        }
+      } catch (paySmsErr) {
+        console.error('[Payment Status SMS Error - Non-fatal]', paySmsErr.message);
+      }
 
       return {
         payment_id: paymentId,
