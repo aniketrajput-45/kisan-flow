@@ -4,7 +4,7 @@
  * IMPORTANT: When testing on a physical device or Android emulator via Expo Go,
  * 'localhost' does NOT work. Use your machine's LAN IP address instead.
  *
- * Your current machine IP: 192.168.29.171
+ * Your current machine IP: 172.25.128.156
  * Backend runs on port: 5000
  */
 
@@ -16,7 +16,7 @@ const getApiBaseUrl = () => {
 
   // ✅ Use your machine's LAN IP so physical devices & emulators can reach the backend.
   // Change this if your IP changes (run `ipconfig` to find it).
-  return 'http://192.168.29.171:5000/api';
+  return 'http://172.25.128.156:5000/api';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
