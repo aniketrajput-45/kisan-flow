@@ -7,10 +7,16 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
   const [selectedSlot, setSelectedSlot] = useState('ALL');
   const selectedId = selectedBooking?.id || selectedBooking?.booking_id;
 
-  const formatSlotTime = (startTime, endTime) => {
-    if (!startTime) return '09:00 - 11:00';
-    const cleanStart = startTime.substring(0, 5);
-    const cleanEnd = endTime ? endTime.substring(0, 5) : '';
+  const formatSlotTime = (startTimeOrItem, maybeEndTime) => {
+    if (!startTimeOrItem) return '09:00 - 11:00';
+    if (typeof startTimeOrItem === 'object') {
+      if (startTimeOrItem.slot_time) return startTimeOrItem.slot_time;
+      const start = startTimeOrItem.start_time ? String(startTimeOrItem.start_time).substring(0, 5) : '09:00';
+      const end = startTimeOrItem.end_time ? String(startTimeOrItem.end_time).substring(0, 5) : '11:00';
+      return `${start} - ${end}`;
+    }
+    const cleanStart = String(startTimeOrItem).substring(0, 5);
+    const cleanEnd = maybeEndTime ? String(maybeEndTime).substring(0, 5) : '';
     return cleanEnd ? `${cleanStart} - ${cleanEnd}` : cleanStart;
   };
 
@@ -23,7 +29,7 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
   const slotStats = useMemo(() => {
     const stats = {};
     activeQueue.forEach((item) => {
-      const slotLabel = formatSlotTime(item.start_time, item.end_time);
+      const slotLabel = item.slot_time || formatSlotTime(item);
       stats[slotLabel] = (stats[slotLabel] || 0) + 1;
     });
     return stats;
@@ -40,7 +46,7 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
   // Filter displayed queue by selected slot
   const displayedQueue = useMemo(() => {
     if (selectedSlot === 'ALL') return activeQueue;
-    return activeQueue.filter((item) => formatSlotTime(item.start_time, item.end_time) === selectedSlot);
+    return activeQueue.filter((item) => (item.slot_time || formatSlotTime(item)) === selectedSlot);
   }, [activeQueue, selectedSlot]);
 
   return (

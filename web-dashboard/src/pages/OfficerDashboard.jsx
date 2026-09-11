@@ -11,7 +11,7 @@ import ProcurementForm from '../components/ProcurementForm';
 import ReceiptModal from '../components/ReceiptModal';
 import { officerService, queueService } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
-import { RefreshCw, CheckCircle2, Play, AlertTriangle } from 'lucide-react';
+import { RefreshCw, CheckCircle2, Play, AlertTriangle, Calendar } from 'lucide-react';
 
 const OfficerDashboard = () => {
   const { t } = useLanguage();
@@ -19,16 +19,17 @@ const OfficerDashboard = () => {
   const [queueInfo, setQueueInfo] = useState(null);
   const [activeQueue, setActiveQueue] = useState([]);
   const [queueLoading, setQueueLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('ALL');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
 
-  const loadActiveQueue = useCallback(async () => {
+  const loadActiveQueue = useCallback(async (dateFilter = selectedDate) => {
     setQueueLoading(true);
     try {
-      const list = await queueService.getActiveQueue();
+      const list = await queueService.getActiveQueue(null, dateFilter);
       const validList = Array.isArray(list) ? list : [];
       setActiveQueue(validList);
       return validList;
@@ -38,11 +39,11 @@ const OfficerDashboard = () => {
     } finally {
       setQueueLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   const loadKpi = useCallback(async () => {
     try {
-      await loadActiveQueue();
+      await loadActiveQueue(selectedDate);
       if (selectedBooking && (selectedBooking.id || selectedBooking.booking_id)) {
         const bId = selectedBooking.id || selectedBooking.booking_id;
         const qData = await queueService.getQueueStatus(bId);
@@ -51,17 +52,17 @@ const OfficerDashboard = () => {
     } catch (err) {
       console.warn('Queue info update failed:', err.message || err);
     }
-  }, [loadActiveQueue, selectedBooking]);
+  }, [loadActiveQueue, selectedBooking, selectedDate]);
 
   useEffect(() => {
-    loadActiveQueue();
+    loadActiveQueue(selectedDate);
 
     // Auto-refresh active queue every 6 seconds so gate arrivals and queue changes reflect automatically
     const interval = setInterval(() => {
-      loadActiveQueue();
+      loadActiveQueue(selectedDate);
     }, 6000);
     return () => clearInterval(interval);
-  }, [loadActiveQueue]);
+  }, [loadActiveQueue, selectedDate]);
 
   const handleSearchBooking = async (tokenOrQuery) => {
     setSearchLoading(true);
@@ -167,13 +168,35 @@ const OfficerDashboard = () => {
             </p>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded px-2.5 py-1 text-xs text-slate-700">
+              <Calendar className="w-3.5 h-3.5 text-[#1E3A8A]" />
+              <span className="font-semibold text-slate-500">Date:</span>
+              <select
+                value={selectedDate}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setSelectedDate(newDate);
+                  loadActiveQueue(newDate);
+                }}
+                className="bg-transparent font-bold text-[#0F2253] outline-none cursor-pointer text-xs"
+              >
+                <option value="ALL">All Active Dates (सभी तारीखें)</option>
+                <option value={new Date().toISOString().split('T')[0]}>
+                  Today ({new Date().toISOString().split('T')[0]})
+                </option>
+                <option value="2026-09-10">2026-09-10</option>
+                <option value="2026-09-12">2026-09-12</option>
+                <option value="2026-09-13">2026-09-13</option>
+              </select>
+            </div>
+
             <button
               onClick={() => {
                 loadKpi();
-                loadActiveQueue();
+                loadActiveQueue(selectedDate);
               }}
-              className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
+              className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-[#1E3A8A] ${queueLoading ? 'animate-spin' : ''}`} />
               <span>{t.dashboard.refresh}</span>
