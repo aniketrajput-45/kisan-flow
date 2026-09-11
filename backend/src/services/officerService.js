@@ -19,7 +19,15 @@ class OfficerService {
        JOIN users u ON b.user_id = u.id
        JOIN centres c ON b.centre_id = c.id
        JOIN slots s ON b.slot_id = s.id
-       WHERE b.qr_code = $1 OR b.token_number = $1 OR u.phone = $1`,
+       WHERE b.qr_code = $1 OR b.token_number = $1 OR u.phone = $1
+       ORDER BY 
+         CASE 
+           WHEN b.status IN ('BOOKED', 'ARRIVED', 'IN_QUEUE', 'PROCESSING') THEN 0 
+           ELSE 1 
+         END, 
+         b.created_at DESC, 
+         b.id DESC
+       LIMIT 1`,
       [queryOrToken]
     );
 

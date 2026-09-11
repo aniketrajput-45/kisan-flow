@@ -3,8 +3,16 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --gov-blue: #0F2253;
+    --gov-saffron: #FF9933;
+    --gov-green: #138808;
+    --gov-bg: #F8FAFC;
+    --gov-surface: #FFFFFF;
+    --gov-border: #CBD5E1;
+  }
   body {
-    background-color: #F1F5F9;
+    background-color: var(--gov-bg);
     color: #1E293B;
     font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   }

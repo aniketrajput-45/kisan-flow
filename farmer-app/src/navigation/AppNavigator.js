@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   ActivityIndicator,
@@ -18,6 +18,7 @@ import BookingScreen from '../screens/BookingScreen';
 import BookingDetailsScreen from '../screens/BookingDetailsScreen';
 import QueueScreen from '../screens/QueueScreen';
 import PaymentScreen from '../screens/PaymentScreen';
+import { getMyBookings } from '../api/bookings';
 
 export const AppNavigatorContent = () => {
   const { token, loading } = useAuth();
@@ -30,6 +31,32 @@ export const AppNavigatorContent = () => {
   // Modals state
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [profileVisible, setProfileVisible] = useState(false);
+
+  // Fetch logged-in user's active booking automatically
+  useEffect(() => {
+    if (token) {
+      getMyBookings()
+        .then((res) => {
+          const list = res.data || res || [];
+          if (Array.isArray(list) && list.length > 0) {
+            const active = list.find(
+              (b) => b.status === 'BOOKED' || b.status === 'ARRIVED' || b.status === 'IN_QUEUE' || b.status === 'PROCESSING'
+            ) || list[0];
+
+            if (active) {
+              setSelectedBooking(active);
+              setSelectedQueueBookingId(active.id);
+              setSelectedPaymentBookingId(active.id);
+            }
+          } else {
+            setSelectedBooking(null);
+            setSelectedQueueBookingId(null);
+            setSelectedPaymentBookingId(null);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [token]);
 
   if (loading) {
     return (
@@ -135,6 +162,7 @@ export const AppNavigatorContent = () => {
               setSelectedPaymentBookingId(bId);
               setCurrentTab('payment');
             }}
+            onBookSlot={() => setCurrentTab('booking')}
           />
         )}
 
@@ -142,6 +170,7 @@ export const AppNavigatorContent = () => {
           <PaymentScreen
             bookingId={selectedPaymentBookingId || selectedBooking?.id}
             onBack={() => setCurrentTab('home')}
+            onBookSlot={() => setCurrentTab('booking')}
           />
         )}
       </View>

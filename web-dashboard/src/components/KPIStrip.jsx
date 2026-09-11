@@ -19,7 +19,7 @@ const KPIStrip = ({ kpiData }) => {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       
       {/* Card 1: Total Tokens Today (Blue) */}
-      <div className="gov-card rounded-lg p-4 border-l-4 border-l-[#1E3A8A] flex flex-col justify-between shadow-sm hover:shadow transition">
+      <div className="gov-card rounded p-4 border-l-4 border-l-[#0F2253] flex flex-col justify-between shadow-sm hover:shadow transition bg-white">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
             {t.kpis.tokensToday}
@@ -40,7 +40,7 @@ const KPIStrip = ({ kpiData }) => {
       </div>
 
       {/* Card 2: Procured Quantity (Green) */}
-      <div className="gov-card rounded-lg p-4 border-l-4 border-l-[#138808] flex flex-col justify-between shadow-sm hover:shadow transition">
+      <div className="gov-card rounded p-4 border-l-4 border-l-[#138808] flex flex-col justify-between shadow-sm hover:shadow transition bg-white">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
             {t.kpis.procuredQty}
@@ -61,7 +61,7 @@ const KPIStrip = ({ kpiData }) => {
       </div>
 
       {/* Card 3: Available Bardana / Bags (Orange) -> WOW Feature 3 */}
-      <div className="gov-card rounded-lg p-4 border-l-4 border-l-[#FF9933] flex flex-col justify-between shadow-sm hover:shadow transition bg-gradient-to-br from-white to-amber-50/40">
+      <div className="gov-card rounded p-4 border-l-4 border-l-[#FF9933] flex flex-col justify-between shadow-sm hover:shadow transition bg-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1.5">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -87,7 +87,7 @@ const KPIStrip = ({ kpiData }) => {
       </div>
 
       {/* Auxiliary Card 4: Live Mandi Serving Lane */}
-      <div className="gov-card rounded-lg p-4 border-l-4 border-l-blue-500 flex flex-col justify-between shadow-sm hover:shadow transition bg-gradient-to-br from-white to-blue-50/30">
+      <div className="gov-card rounded p-4 border-l-4 border-l-[#0F2253] flex flex-col justify-between shadow-sm hover:shadow transition bg-white">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
             {t.kpis.weighLane}

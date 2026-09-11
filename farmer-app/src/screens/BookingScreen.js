@@ -84,10 +84,11 @@ const formatDateForDisplay = (isoStr) => {
 
   if (isNaN(dateObj.getTime())) return isoStr;
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const tom = new Date();
   tom.setDate(tom.getDate() + 1);
-  const tomStr = tom.toISOString().split('T')[0];
+  const tomStr = `${tom.getFullYear()}-${String(tom.getMonth() + 1).padStart(2, '0')}-${String(tom.getDate()).padStart(2, '0')}`;
 
   let prefix = '';
   if (isoStr === todayStr) prefix = 'Today, ';
@@ -108,13 +109,27 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
   const [centres, setCentres] = useState([]);
   const [selectedCentre, setSelectedCentre] = useState(null);
   
-  // Set default date to active backend schedule date (2026-09-10)
-  const defaultDateIso = '2026-09-10';
-  const [selectedDate, setSelectedDate] = useState(defaultDateIso);
+  // Compute today's date in local ISO string YYYY-MM-DD
+  const todayIso = React.useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }, []);
+
+  // Default selected date to today's date
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  const [calYear, setCalYear] = useState(2026);
-  const [calMonth, setCalMonth] = useState(8); // September (0-indexed 8)
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
 
   const calendarMatrix = React.useMemo(() => getCalendarMatrix(calYear, calMonth), [calYear, calMonth]);
 
@@ -124,23 +139,23 @@ export const BookingScreen = ({ onBookingCreated, onGoToMyBookings }) => {
   const handlePrevMonth = () => {
     if (calMonth === 0) {
       setCalMonth(11);
-      setCalYear(calYear - 1);
+      setCalYear((prev) => prev - 1);
     } else {
-      setCalMonth(calMonth - 1);
+      setCalMonth((prev) => prev - 1);
     }
   };
 
   const handleNextMonth = () => {
     if (calMonth === 11) {
       setCalMonth(0);
-      setCalYear(calYear + 1);
+      setCalYear((prev) => prev + 1);
     } else {
-      setCalMonth(calMonth + 1);
+      setCalMonth((prev) => prev + 1);
     }
   };
 
   const handleQuickJump = (daysAhead) => {
-    const d = new Date(2026, 8, 10);
+    const d = new Date();
     d.setDate(d.getDate() + daysAhead);
     const y = d.getFullYear();
     const m = d.getMonth();

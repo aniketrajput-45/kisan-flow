@@ -7,6 +7,9 @@ const { authenticate, requireRole } = require('../middleware/auth');
 router.get('/officer/booking/lookup', authenticate, requireRole('OFFICER', 'ADMIN'), officerController.lookupBooking);
 router.get('/officer/booking/:qrToken', authenticate, requireRole('OFFICER', 'ADMIN'), officerController.lookupBooking);
 
+// Live Queue feed for Officer
+router.get('/queue', authenticate, requireRole('OFFICER', 'ADMIN'), officerController.getLiveQueue);
+
 // Procurement Recording
 router.post('/procurements', authenticate, requireRole('OFFICER', 'ADMIN'), officerController.recordProcurement);
 
