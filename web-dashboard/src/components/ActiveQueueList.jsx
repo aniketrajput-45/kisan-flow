@@ -2,10 +2,17 @@ import React, { useState, useMemo } from 'react';
 import { Users, Clock, ArrowRight, RefreshCw, CheckCircle2, UserCheck, ShieldCheck, Filter } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
-const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, onSelectBooking, onRefresh }) => {
+const ActiveQueueList = ({
+  queue = [],
+  loading = false,
+  selectedBooking = null,
+  onSelectBooking,
+  onRefresh,
+  onMarkArrival,
+}) => {
   const { t } = useLanguage();
   const [selectedSlot, setSelectedSlot] = useState('ALL');
-  const [viewMode, setViewMode] = useState('ARRIVED'); // 'ARRIVED' (default: only marked arrived) | 'ALL' (all booked)
+  const [viewMode, setViewMode] = useState('ARRIVED'); // 'ARRIVED' (default: physically checked in) | 'ALL' (all scheduled)
   const selectedId = selectedBooking?.id || selectedBooking?.booking_id;
 
   const formatSlotTime = (startTimeOrItem, maybeEndTime) => {
@@ -41,23 +48,35 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
     return uncompletedList.filter((item) => item.status !== 'BOOKED');
   }, [uncompletedList, viewMode]);
 
-  // Compute live count of farmers per slot
-  const slotStats = useMemo(() => {
+  // Compute live breakdown stats per slot (both arrived count and booked count)
+  const slotBreakdown = useMemo(() => {
     const stats = {};
-    activeQueue.forEach((item) => {
-      const slotLabel = item.slot_time || formatSlotTime(item);
-      stats[slotLabel] = (stats[slotLabel] || 0) + 1;
+    const defaultSlots = ['09:00 - 11:00', '11:00 - 13:00', '14:00 - 16:00', '16:00 - 18:00'];
+    defaultSlots.forEach((s) => {
+      stats[s] = { arrived: 0, booked: 0 };
     });
+
+    uncompletedList.forEach((item) => {
+      const slotLabel = item.slot_time || formatSlotTime(item);
+      if (!stats[slotLabel]) {
+        stats[slotLabel] = { arrived: 0, booked: 0 };
+      }
+      stats[slotLabel].booked += 1;
+      if (item.status !== 'BOOKED') {
+        stats[slotLabel].arrived += 1;
+      }
+    });
+
     return stats;
-  }, [activeQueue]);
+  }, [uncompletedList]);
 
   // Unique slot list
   const availableSlots = useMemo(() => {
     const defaultSlots = ['09:00 - 11:00', '11:00 - 13:00', '14:00 - 16:00', '16:00 - 18:00'];
-    const dynamicSlots = Object.keys(slotStats);
+    const dynamicSlots = Object.keys(slotBreakdown);
     const combined = Array.from(new Set([...defaultSlots, ...dynamicSlots]));
     return combined.sort();
-  }, [slotStats]);
+  }, [slotBreakdown]);
 
   // Filter displayed queue by selected slot
   const displayedQueue = useMemo(() => {
@@ -175,13 +194,16 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
                 selectedSlot === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
               }`}
             >
-              {activeQueue.length}
+              {viewMode === 'ARRIVED' ? arrivedCount : totalBookedCount}
             </span>
           </button>
 
           {availableSlots.map((slotTime) => {
-            const count = slotStats[slotTime] || 0;
+            const stats = slotBreakdown[slotTime] || { arrived: 0, booked: 0 };
             const isSelected = selectedSlot === slotTime;
+            const hasArrived = stats.arrived > 0;
+            const hasBooked = stats.booked > 0;
+
             return (
               <button
                 key={slotTime}
@@ -190,24 +212,41 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
                 className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   isSelected
                     ? 'bg-[#1E3A8A] text-white shadow-xs'
-                    : count > 0
+                    : hasArrived
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : hasBooked
                     ? 'bg-blue-50 hover:bg-blue-100 text-[#1E3A8A] border border-blue-200'
                     : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border border-slate-200'
                 }`}
               >
                 <Clock className="w-3 h-3" />
                 <span>{slotTime}</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                    isSelected
-                      ? 'bg-white/20 text-white'
-                      : count > 0
-                      ? 'bg-blue-200 text-[#0F2253]'
-                      : 'bg-slate-200 text-slate-400'
-                  }`}
-                >
-                  {count}
-                </span>
+                {viewMode === 'ARRIVED' ? (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                      isSelected
+                        ? 'bg-white/20 text-white'
+                        : hasArrived
+                        ? 'bg-emerald-200 text-emerald-900'
+                        : 'bg-slate-200 text-slate-400'
+                    }`}
+                  >
+                    {stats.arrived} Arrived
+                    {stats.booked > stats.arrived && ` (${stats.booked} booked)`}
+                  </span>
+                ) : (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                      isSelected
+                        ? 'bg-white/20 text-white'
+                        : hasBooked
+                        ? 'bg-blue-200 text-[#0F2253]'
+                        : 'bg-slate-200 text-slate-400'
+                    }`}
+                  >
+                    {stats.booked} Booked
+                  </span>
+                )}
               </button>
             );
           })}
@@ -230,16 +269,27 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
             {selectedSlot === 'ALL'
               ? viewMode === 'ARRIVED'
                 ? 'No farmers have marked arrival at the gate yet.'
-                : 'No bookings found for this day.'
+                : 'No bookings scheduled for this date.'
               : viewMode === 'ARRIVED'
               ? `No farmers currently arrived for Slot (${selectedSlot}).`
-              : `No bookings found for Slot (${selectedSlot}).`}
+              : `No bookings scheduled for Slot (${selectedSlot}).`}
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
             {viewMode === 'ARRIVED'
-              ? 'When a booked farmer marks arrival at the centre gate (via farmer app or gate QR), their token will instantly appear in this live queue.'
-              : 'Switch to "Arrived at Gate" to view farmers who are physically present in the queue.'}
+              ? 'When a booked farmer reaches the mandi and marks arrival (via farmer app or gate desk), their token will immediately appear in this queue under their slot.'
+              : 'Switch to "Arrived at Gate" to view only farmers physically present in the live queue.'}
           </p>
+          {selectedSlot !== 'ALL' && slotBreakdown[selectedSlot]?.booked > 0 && viewMode === 'ARRIVED' && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setViewMode('ALL')}
+                className="text-xs font-bold text-[#1E3A8A] hover:underline bg-blue-50 border border-blue-200 px-3 py-1 rounded"
+              >
+                View {slotBreakdown[selectedSlot]?.booked} booked farmer(s) scheduled for this slot →
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* Queue Table */
@@ -347,7 +397,28 @@ const ActiveQueueList = ({ queue = [], loading = false, selectedBooking = null, 
 
                     {/* Action Button */}
                     <td className="py-3 px-3 text-right">
-                      {isItemActive ? (
+                      {item.status === 'BOOKED' ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {onMarkArrival && (
+                            <button
+                              type="button"
+                              onClick={() => onMarkArrival(item.id || item.booking_id)}
+                              className="text-[11px] font-bold px-2.5 py-1.5 rounded inline-flex items-center gap-1 transition bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                              title="Mark arrived at gate on behalf of farmer"
+                            >
+                              <UserCheck className="w-3 h-3" />
+                              <span>Gate Check-In</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onSelectBooking(item)}
+                            className="text-[11px] font-semibold px-2.5 py-1.5 rounded inline-flex items-center gap-1 transition bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 cursor-pointer"
+                          >
+                            <span>Lookup</span>
+                          </button>
+                        </div>
+                      ) : isItemActive ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded border border-emerald-300">
                           <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                           <span>Active in Form</span>

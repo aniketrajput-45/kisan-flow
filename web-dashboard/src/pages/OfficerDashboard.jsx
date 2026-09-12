@@ -29,7 +29,11 @@ const OfficerDashboard = () => {
   const loadActiveQueue = useCallback(async (dateFilter = selectedDate) => {
     setQueueLoading(true);
     try {
-      const list = await queueService.getActiveQueue(null, dateFilter);
+      // Fetch with status='ALL' so the dashboard has both schedule (booked) and live queue (arrived) data
+      const list = await queueService.getActiveQueue({
+        date: dateFilter,
+        status: 'ALL',
+      });
       const validList = Array.isArray(list) ? list : [];
       setActiveQueue(validList);
       return validList;
@@ -131,6 +135,19 @@ const OfficerDashboard = () => {
     }
   };
 
+  const handleMarkArrival = async (bookingId) => {
+    if (!bookingId) return;
+    setActionLoading(true);
+    try {
+      await queueService.arrive(bookingId);
+      await loadActiveQueue();
+    } catch (err) {
+      alert('Gate Check-in Error: ' + (err.message || err));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleNextFarmer = async () => {
     setReceiptData(null);
     const updatedList = await loadActiveQueue();
@@ -141,6 +158,26 @@ const OfficerDashboard = () => {
       setQueueInfo(null);
     }
   };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const dateOptions = React.useMemo(() => {
+    const dates = new Set([
+      'ALL',
+      todayStr,
+      '2026-09-10',
+      '2026-09-11',
+      '2026-09-12',
+      '2026-09-13',
+      '2026-09-14',
+      '2026-09-15',
+    ]);
+    (activeQueue || []).forEach((b) => {
+      if (b.booking_date) {
+        dates.add(String(b.booking_date).split('T')[0]);
+      }
+    });
+    return Array.from(dates);
+  }, [activeQueue, todayStr]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F3F4F6] text-slate-800">
@@ -182,12 +219,13 @@ const OfficerDashboard = () => {
                 className="bg-transparent font-bold text-[#0F2253] outline-none cursor-pointer text-xs"
               >
                 <option value="ALL">All Active Dates (सभी तारीखें)</option>
-                <option value={new Date().toISOString().split('T')[0]}>
-                  Today ({new Date().toISOString().split('T')[0]})
-                </option>
-                <option value="2026-09-10">2026-09-10</option>
-                <option value="2026-09-12">2026-09-12</option>
-                <option value="2026-09-13">2026-09-13</option>
+                {dateOptions
+                  .filter((d) => d !== 'ALL')
+                  .map((d) => (
+                    <option key={d} value={d}>
+                      {d === todayStr ? `Today (${d})` : d}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -208,7 +246,7 @@ const OfficerDashboard = () => {
         <KPIStrip kpiData={{
           currentServingToken: activeQueue.find(b => b.status === 'PROCESSING')?.token_number || queueInfo?.currently_processing || (selectedBooking?.status === 'PROCESSING' ? selectedBooking?.token_number : '—'),
           servedTokens: '34',
-          pendingTokens: activeQueue.length,
+          pendingTokens: activeQueue.filter(b => b.status !== 'BOOKED').length,
           totalTokensToday: 34 + activeQueue.length,
           procuredWeightTons: '154.2',
         }} />
@@ -220,6 +258,7 @@ const OfficerDashboard = () => {
           selectedBooking={selectedBooking}
           onSelectBooking={handleSelectQueueBooking}
           onRefresh={loadActiveQueue}
+          onMarkArrival={handleMarkArrival}
         />
 
         {/* Section 3: Token Search & Verification */}
