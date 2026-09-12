@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { getMyBookings } from '../api/bookings';
-import { getQueueStatus } from '../api/queue';
+import { getQueueStatus, markArrival } from '../api/queue';
 import StatusBadge from '../components/StatusBadge';
 import ErrorAlert from '../components/ErrorAlert';
 import BookingTimeline from '../components/BookingTimeline';
@@ -16,6 +16,7 @@ export const HomeScreen = ({ onBookSlot, onSelectBooking, onGoToQueue, onGoToPay
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [queueLoading, setQueueLoading] = useState(false);
+  const [arriving, setArriving] = useState(false);
   const [error, setError] = useState(null);
   const [queueData, setQueueData] = useState(null);
 
@@ -63,6 +64,19 @@ export const HomeScreen = ({ onBookSlot, onSelectBooking, onGoToQueue, onGoToPay
     }
   };
 
+  const handleMarkArrival = async (bookingId) => {
+    if (!bookingId || arriving) return;
+    setArriving(true);
+    try {
+      await markArrival(bookingId);
+      await fetchBookings();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setArriving(false);
+    }
+  };
+
   const activeBooking = bookings.find(
     (b) => b.status === 'BOOKED' || b.status === 'ARRIVED' || b.status === 'IN_QUEUE' || b.status === 'PROCESSING'
   );
@@ -88,15 +102,15 @@ export const HomeScreen = ({ onBookSlot, onSelectBooking, onGoToQueue, onGoToPay
 
       {/* Active Token Hero Pass */}
       {activeBooking ? (
-        <View style={styles.sectionMargin}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>{t('activeBookingTitle')}</Text>
+        <View style={styles.activeCard}>
+          <View style={styles.activeCardHeader}>
+            <View style={styles.livePulseDot} />
+            <Text style={styles.activeCardTitle}>{t('activeBookingTitle')}</Text>
             <StatusBadge status={activeBooking.status} />
           </View>
 
-          {/* Active Booking Card */}
-          <View style={styles.activeCard}>
-            {/* Top Bar with Token Badge */}
+          <View style={styles.activeCardBody}>
+            {/* Token & Crop Row */}
             <View style={styles.activeCardTop}>
               <View style={styles.tokenTag}>
                 <Text style={styles.tokenTagLabel}>{t('tokenNumber')}</Text>
@@ -161,6 +175,20 @@ export const HomeScreen = ({ onBookSlot, onSelectBooking, onGoToQueue, onGoToPay
 
             {/* Timeline component */}
             <BookingTimeline currentStatus={activeBooking.status} />
+
+            {/* Mark Arrival Gate Button if only Booked */}
+            {activeBooking.status === 'BOOKED' && (
+              <TouchableOpacity
+                style={styles.arriveDirectBtn}
+                onPress={() => handleMarkArrival(activeBooking.id)}
+                disabled={arriving}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.arriveDirectBtnText}>
+                  {arriving ? 'Checking in at gate...' : `📍 ${t('iveArrived')} (गेट पर उपस्थिति दर्ज करें)`}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {/* Action buttons */}
             <View style={styles.actionGrid}>
@@ -410,6 +438,26 @@ const styles = StyleSheet.create({
     width: 1,
     height: 24,
     backgroundColor: '#bbf7d0',
+  },
+  arriveDirectBtn: {
+    backgroundColor: '#059669',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#047857',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  arriveDirectBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 14,
   },
   actionGrid: {
     flexDirection: 'row',

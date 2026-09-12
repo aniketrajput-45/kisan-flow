@@ -497,8 +497,18 @@ function setupDbFallback(pool) {
               };
             })
             .sort((a, b) => {
-              if (a.status === 'PROCESSING' && b.status !== 'PROCESSING') return -1;
-              if (b.status === 'PROCESSING' && a.status !== 'PROCESSING') return 1;
+              const statusRank = (s) => {
+                if (s === 'PROCESSING') return 0;
+                if (s === 'IN_QUEUE') return 1;
+                if (s === 'ARRIVED') return 2;
+                return 3;
+              };
+              if (statusRank(a.status) !== statusRank(b.status)) {
+                return statusRank(a.status) - statusRank(b.status);
+              }
+              if (a.start_time !== b.start_time) {
+                return String(a.start_time).localeCompare(String(b.start_time));
+              }
               return a.id - b.id;
             });
 

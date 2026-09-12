@@ -419,8 +419,11 @@ class QueueService {
     let dateStr = targetDate;
     if (dateStr === 'ALL' || dateStr === '' || !dateStr) {
       dateStr = null;
-    } else if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      dateStr = null;
+    } else {
+      dateStr = String(dateStr).split('T')[0];
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        dateStr = null;
+      }
     }
 
     // Default: only farmers who have marked arrival at the centre (ARRIVED, IN_QUEUE, PROCESSING)
@@ -458,17 +461,37 @@ class QueueService {
 
     query += `
       ORDER BY 
-        CASE WHEN b.status = 'PROCESSING' THEN 0 ELSE 1 END,
+        CASE 
+          WHEN b.status = 'PROCESSING' THEN 0 
+          WHEN b.status = 'IN_QUEUE' THEN 1
+          WHEN b.status = 'ARRIVED' THEN 2
+          ELSE 3 
+        END,
+        s.start_time ASC,
         b.id ASC
     `;
 
     const result = await pool.query(query, queryParams);
 
-    const activeList = result.rows.map((row, index) => {
+    let arrivedCount = 0;
+    const activeList = result.rows.map((row) => {
       const isProcessing = row.status === 'PROCESSING';
-      const position = isProcessing ? 0 : index + 1;
-      const peopleAhead = isProcessing ? 0 : index;
-      const estWaitMin = peopleAhead * DEMO_AVG_PROCESSING_MINUTES;
+      const isArrived = row.status === 'ARRIVED' || row.status === 'IN_QUEUE';
+
+      let position = 'Scheduled';
+      let peopleAhead = null;
+      let estWaitMin = null;
+
+      if (isProcessing) {
+        position = 'Serving';
+        peopleAhead = 0;
+        estWaitMin = 0;
+      } else if (isArrived) {
+        arrivedCount++;
+        position = `#${arrivedCount}`;
+        peopleAhead = arrivedCount - 1;
+        estWaitMin = peopleAhead * DEMO_AVG_PROCESSING_MINUTES;
+      }
 
       const slotTimeFormatted = (row.start_time && row.end_time)
         ? `${String(row.start_time).substring(0, 5)} - ${String(row.end_time).substring(0, 5)}`
@@ -477,7 +500,7 @@ class QueueService {
       return {
         ...row,
         slot_time: slotTimeFormatted,
-        queue_position: isProcessing ? 'Serving' : `#${position}`,
+        queue_position: position,
         people_ahead: peopleAhead,
         estimated_wait_minutes: estWaitMin,
       };

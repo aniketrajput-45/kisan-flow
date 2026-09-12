@@ -179,7 +179,7 @@ export const queueService = {
       if (centreId) params.append('centreId', centreId);
       if (date && date !== 'ALL') params.append('date', date);
       if (slotId && slotId !== 'ALL') params.append('slotId', slotId);
-      if (status && status !== 'ARRIVED') params.append('status', status);
+      if (status) params.append('status', status);
       const queryString = params.toString();
       const url = queryString ? `/queue/active?${queryString}` : '/queue/active';
       const response = await apiClient.get(url);
